@@ -1,1 +1,162 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TeamUp</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: Arial;
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .container {
+            max-width: 400px;
+            width: 100%;
+            background: white;
+            padding: 30px;
+            border-radius: 20px;
+            text-align: center;
+        }
+        h1 { color: #ee5a24; margin-bottom: 5px; }
+        input, button {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            border-radius: 10px;
+            border: 1px solid #ddd;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        button {
+            background: #ee5a24;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:active { transform: scale(0.98); }
+        .hidden { display: none; }
+        .success { background: #e6ffe6; color: green; padding: 10px; border-radius: 8px; margin-top: 10px; }
+        .error { background: #ffe6e6; color: red; padding: 10px; border-radius: 8px; margin-top: 10px; }
+        .tab {
+            display: inline-block;
+            width: 45%;
+            padding: 10px;
+            margin: 5px;
+            background: #f0f0f0;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+        .tab.active { background: #ee5a24; color: white; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>❤️ TeamUp</h1>
+        <p>Find your perfect match</p>
+        
+        <div>
+            <span class="tab active" id="showLogin">Login</span>
+            <span class="tab" id="showSignup">Sign Up</span>
+        </div>
+        
+        <div id="loginDiv">
+            <input type="email" id="loginEmail" placeholder="Email">
+            <input type="password" id="loginPassword" placeholder="Password">
+            <button id="loginButton">Login</button>
+            <div id="loginResult"></div>
+        </div>
+        
+        <div id="signupDiv" class="hidden">
+            <input type="text" id="signupName" placeholder="Full Name">
+            <input type="email" id="signupEmail" placeholder="Email">
+            <input type="password" id="signupPassword" placeholder="Password">
+            <button id="signupButton">Create Account</button>
+            <div id="signupResult"></div>
+        </div>
+    </div>
 
+    <script>
+        const supabase = supabaseJs.createClient(
+            'https://tudcytsggzftbxnpafcb.supabase.co',
+            'sb_publishable_vBxw0dnxLHHp1FGOPH6eQw_c7wotPhq'
+        );
+
+        document.getElementById('showLogin').onclick = () => {
+            document.getElementById('showLogin').classList.add('active');
+            document.getElementById('showSignup').classList.remove('active');
+            document.getElementById('loginDiv').classList.remove('hidden');
+            document.getElementById('signupDiv').classList.add('hidden');
+        };
+        
+        document.getElementById('showSignup').onclick = () => {
+            document.getElementById('showSignup').classList.add('active');
+            document.getElementById('showLogin').classList.remove('active');
+            document.getElementById('signupDiv').classList.remove('hidden');
+            document.getElementById('loginDiv').classList.add('hidden');
+        };
+        
+        document.getElementById('signupButton').onclick = async () => {
+            const name = document.getElementById('signupName').value;
+            const email = document.getElementById('signupEmail').value;
+            const password = document.getElementById('signupPassword').value;
+            const resultDiv = document.getElementById('signupResult');
+            
+            if (!name || !email || !password) {
+                resultDiv.innerHTML = '<div class="error">Please fill all fields</div>';
+                return;
+            }
+            
+            resultDiv.innerHTML = '<div>Creating account...</div>';
+            
+            const { data, error } = await supabase.auth.signUp({
+                email: email,
+                password: password,
+                options: { data: { name: name } }
+            });
+            
+            if (error) {
+                resultDiv.innerHTML = '<div class="error">' + error.message + '</div>';
+            } else {
+                resultDiv.innerHTML = '<div class="success">✅ Account created! Please login.</div>';
+                document.getElementById('signupName').value = '';
+                document.getElementById('signupEmail').value = '';
+                document.getElementById('signupPassword').value = '';
+                setTimeout(() => document.getElementById('showLogin').click(), 2000);
+            }
+        };
+        
+        document.getElementById('loginButton').onclick = async () => {
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+            const resultDiv = document.getElementById('loginResult');
+            
+            if (!email || !password) {
+                resultDiv.innerHTML = '<div class="error">Enter email and password</div>';
+                return;
+            }
+            
+            resultDiv.innerHTML = '<div>Logging in...</div>';
+            
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email: email,
+                password: password
+            });
+            
+            if (error) {
+                resultDiv.innerHTML = '<div class="error">' + error.message + '</div>';
+            } else {
+                resultDiv.innerHTML = '<div class="success">✅ Welcome ' + data.user.email + '!</div>';
+                alert('Login Successful! Welcome to TeamUp!');
+            }
+        };
+    </script>
+</body>
+</html>
