@@ -25,19 +25,25 @@
             text-align: center;
         }
         h1 { color: #ee5a24; margin-bottom: 5px; }
-        input, button {
+        p { color: #666; margin-bottom: 20px; }
+        input {
             width: 100%;
             padding: 12px;
             margin: 8px 0;
-            border-radius: 10px;
             border: 1px solid #ddd;
+            border-radius: 10px;
             font-size: 16px;
             box-sizing: border-box;
         }
         button {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
             background: #ee5a24;
             color: white;
             border: none;
+            border-radius: 10px;
+            font-size: 16px;
             cursor: pointer;
             font-weight: bold;
         }
@@ -70,7 +76,7 @@
         <div id="loginDiv">
             <input type="email" id="loginEmail" placeholder="Email">
             <input type="password" id="loginPassword" placeholder="Password">
-            <button id="loginButton">Login</button>
+            <button id="loginBtn">Login</button>
             <div id="loginResult"></div>
         </div>
         
@@ -78,15 +84,16 @@
             <input type="text" id="signupName" placeholder="Full Name">
             <input type="email" id="signupEmail" placeholder="Email">
             <input type="password" id="signupPassword" placeholder="Password">
-            <button id="signupButton">Create Account</button>
+            <button id="signupBtn">Create Account</button>
             <div id="signupResult"></div>
         </div>
     </div>
 
     <script>
+        // YOUR CORRECT CREDENTIALS
         const supabase = supabaseJs.createClient(
-            'https://tudcytsggzftbxnpafcb.supabase.co',
-            'sb_publishable_vBxw0dnxLHHp1FGOPH6eQw_c7wotPhq'
+            'https://flwkrmgbliguayf4wv.supabase.co',
+            'sb_publishable_osBxRoPWI591ASXtEHHPGg_9TZtlctr'
         );
 
         document.getElementById('showLogin').onclick = () => {
@@ -103,18 +110,18 @@
             document.getElementById('loginDiv').classList.add('hidden');
         };
         
-        document.getElementById('signupButton').onclick = async () => {
+        document.getElementById('signupBtn').onclick = async () => {
             const name = document.getElementById('signupName').value;
             const email = document.getElementById('signupEmail').value;
             const password = document.getElementById('signupPassword').value;
-            const resultDiv = document.getElementById('signupResult');
+            const result = document.getElementById('signupResult');
             
             if (!name || !email || !password) {
-                resultDiv.innerHTML = '<div class="error">Please fill all fields</div>';
+                result.innerHTML = '<div class="error">Please fill all fields</div>';
                 return;
             }
             
-            resultDiv.innerHTML = '<div>Creating account...</div>';
+            result.innerHTML = '<div>Creating account...</div>';
             
             const { data, error } = await supabase.auth.signUp({
                 email: email,
@@ -123,9 +130,9 @@
             });
             
             if (error) {
-                resultDiv.innerHTML = '<div class="error">' + error.message + '</div>';
+                result.innerHTML = '<div class="error">' + error.message + '</div>';
             } else {
-                resultDiv.innerHTML = '<div class="success">✅ Account created! Please login.</div>';
+                result.innerHTML = '<div class="success">✅ Account created! Please login.</div>';
                 document.getElementById('signupName').value = '';
                 document.getElementById('signupEmail').value = '';
                 document.getElementById('signupPassword').value = '';
@@ -133,17 +140,17 @@
             }
         };
         
-        document.getElementById('loginButton').onclick = async () => {
+        document.getElementById('loginBtn').onclick = async () => {
             const email = document.getElementById('loginEmail').value;
             const password = document.getElementById('loginPassword').value;
-            const resultDiv = document.getElementById('loginResult');
+            const result = document.getElementById('loginResult');
             
             if (!email || !password) {
-                resultDiv.innerHTML = '<div class="error">Enter email and password</div>';
+                result.innerHTML = '<div class="error">Enter email and password</div>';
                 return;
             }
             
-            resultDiv.innerHTML = '<div>Logging in...</div>';
+            result.innerHTML = '<div>Logging in...</div>';
             
             const { data, error } = await supabase.auth.signInWithPassword({
                 email: email,
@@ -151,9 +158,9 @@
             });
             
             if (error) {
-                resultDiv.innerHTML = '<div class="error">' + error.message + '</div>';
+                result.innerHTML = '<div class="error">' + error.message + '</div>';
             } else {
-                resultDiv.innerHTML = '<div class="success">✅ Welcome ' + data.user.email + '!</div>';
+                result.innerHTML = '<div class="success">✅ Welcome ' + data.user.email + '!</div>';
                 alert('Login Successful! Welcome to TeamUp!');
             }
         };
