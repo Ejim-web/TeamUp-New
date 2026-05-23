@@ -1,1 +1,155 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TeamUp</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: Arial;
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .container {
+            max-width: 400px;
+            width: 100%;
+            background: white;
+            padding: 30px;
+            border-radius: 20px;
+            text-align: center;
+        }
+        h1 { color: #ee5a24; }
+        input, button {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            border-radius: 10px;
+            border: 1px solid #ddd;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        button {
+            background: #ee5a24;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        .hidden { display: none; }
+        .success { background: #e6ffe6; color: green; padding: 10px; border-radius: 8px; margin-top: 10px; }
+        .error { background: #ffe6e6; color: red; padding: 10px; border-radius: 8px; margin-top: 10px; }
+        .tab {
+            display: inline-block;
+            width: 45%;
+            padding: 10px;
+            margin: 5px;
+            background: #f0f0f0;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+        .tab.active { background: #ee5a24; color: white; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>TeamUp</h1>
+        <p>Find your perfect match</p>
+        
+        <div>
+            <span class="tab active" id="showLogin">Login</span>
+            <span class="tab" id="showSignup">Sign Up</span>
+        </div>
+        
+        <div id="loginDiv">
+            <input type="email" id="loginEmail" placeholder="Email">
+            <input type="password" id="loginPassword" placeholder="Password">
+            <button id="loginBtn">Login</button>
+            <div id="loginMsg"></div>
+        </div>
+        
+        <div id="signupDiv" class="hidden">
+            <input type="text" id="signupName" placeholder="Full Name">
+            <input type="email" id="signupEmail" placeholder="Email">
+            <input type="password" id="signupPassword" placeholder="Password">
+            <button id="signupBtn">Create Account</button>
+            <div id="signupMsg"></div>
+        </div>
+    </div>
 
+    <script>
+        // CORRECTED SUPABASE URL
+        const supabase = supabaseJs.createClient(
+            'https://flwkrmgbliguayf4wv.supabase.co',
+            'sb_publishable_osBxRoPWI591ASXtEHHPGg_9TZtlctr'
+        );
+
+        showLogin.onclick = () => {
+            showLogin.classList.add('active');
+            showSignup.classList.remove('active');
+            loginDiv.classList.remove('hidden');
+            signupDiv.classList.add('hidden');
+        };
+        
+        showSignup.onclick = () => {
+            showSignup.classList.add('active');
+            showLogin.classList.remove('active');
+            signupDiv.classList.remove('hidden');
+            loginDiv.classList.add('hidden');
+        };
+        
+        signupBtn.onclick = async () => {
+            const name = signupName.value;
+            const email = signupEmail.value;
+            const password = signupPassword.value;
+            
+            if (!name || !email || !password) {
+                signupMsg.innerHTML = '<div class="error">Fill all fields</div>';
+                return;
+            }
+            
+            signupMsg.innerHTML = '<div>Creating account...</div>';
+            
+            const { error } = await supabase.auth.signUp({
+                email, password,
+                options: { data: { name } }
+            });
+            
+            if (error) {
+                signupMsg.innerHTML = '<div class="error">' + error.message + '</div>';
+            } else {
+                signupMsg.innerHTML = '<div class="success">✅ Account created! Login.</div>';
+                signupName.value = '';
+                signupEmail.value = '';
+                signupPassword.value = '';
+                setTimeout(() => showLogin.click(), 2000);
+            }
+        };
+        
+        loginBtn.onclick = async () => {
+            const email = loginEmail.value;
+            const password = loginPassword.value;
+            
+            if (!email || !password) {
+                loginMsg.innerHTML = '<div class="error">Enter email and password</div>';
+                return;
+            }
+            
+            loginMsg.innerHTML = '<div>Logging in...</div>';
+            
+            const { error } = await supabase.auth.signInWithPassword({ email, password });
+            
+            if (error) {
+                loginMsg.innerHTML = '<div class="error">' + error.message + '</div>';
+            } else {
+                loginMsg.innerHTML = '<div class="success">✅ Welcome!</div>';
+                alert('Login successful!');
+            }
+        };
+    </script>
+</body>
+</html>
