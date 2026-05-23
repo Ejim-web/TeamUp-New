@@ -24,20 +24,26 @@
             width: 100%;
             text-align: center;
         }
-        h1 { color: #ee5a24; }
-        input, button {
+        h1 { color: #ee5a24; margin-bottom: 5px; }
+        p { color: #666; margin-bottom: 20px; }
+        input {
             width: 100%;
             padding: 12px;
             margin: 8px 0;
-            border-radius: 10px;
             border: 1px solid #ddd;
+            border-radius: 10px;
             font-size: 16px;
             box-sizing: border-box;
         }
         button {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
             background: #ee5a24;
             color: white;
             border: none;
+            border-radius: 10px;
+            font-size: 16px;
             cursor: pointer;
         }
         .hidden { display: none; }
@@ -57,7 +63,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>TeamUp</h1>
+        <h1>❤️ TeamUp</h1>
         <p>Find your perfect match</p>
         
         <div>
@@ -82,10 +88,10 @@
     </div>
 
     <script>
-        // YOUR CORRECT WORKING CREDENTIALS
+        // YOUR NEW WORKING CREDENTIALS
         const supabase = window.supabase.createClient(
-            'https://flwkmrgbligugayfdww.supabase.co',
-            'sb_publishable_osBxRoPWI591ASXtEHHPGg_9TZtlctr'
+            'https://fdgbcgqkhclpejvpxqax.supabase.co',
+            'sb_publishable_R2Ooyrvm5gyr75T5RYSeiw_lPEy24TX'
         );
 
         showLogin.onclick = () => {
