@@ -1,1 +1,840 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TeamUp - Dating App</title>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial; background: linear-gradient(135deg, #ff6b6b, #ee5a24); min-height: 100vh; }
+        .auth-screen { display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
+        .auth-card { background: white; border-radius: 24px; padding: 40px 30px; max-width: 400px; width: 100%; text-align: center; }
+        h1 { color: #ee5a24; margin-bottom: 10px; }
+        .tabs { display: flex; gap: 12px; margin-bottom: 30px; }
+        .tab { flex: 1; padding: 12px; cursor: pointer; border-radius: 12px; background: #f0f0f0; font-weight: bold; }
+        .tab.active { background: #ee5a24; color: white; }
+        input, textarea { width: 100%; padding: 14px; margin: 8px 0; border: 1px solid #ddd; border-radius: 12px; font-size: 16px; font-family: inherit; }
+        button { width: 100%; padding: 14px; background: #ee5a24; color: white; border: none; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        button:active { transform: scale(0.98); }
+        .hidden { display: none; }
+        .error { background: #ffe6e6; color: red; padding: 10px; border-radius: 8px; margin-top: 10px; }
+        .success { background: #e6ffe6; color: green; padding: 10px; border-radius: 8px; margin-top: 10px; }
+        .app { display: none; max-width: 500px; margin: 0 auto; background: #f5f5f5; min-height: 100vh; }
+        .header { background: white; padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ddd; }
+        .header h2 { color: #ee5a24; }
+        .logout-btn { width: auto; padding: 8px 16px; background: #f0f0f0; color: #666; margin-top: 0; }
+        .nav { position: fixed; bottom: 0; left: 0; right: 0; max-width: 500px; margin: 0 auto; background: white; display: flex; justify-content: space-around; padding: 12px; border-top: 1px solid #ddd; }
+        .nav-item { text-align: center; cursor: pointer; padding: 8px; border-radius: 12px; }
+        .nav-item.active { color: #ee5a24; background: rgba(238,90,36,0.1); }
+        .nav-item span { font-size: 11px; display: block; }
+        .page { display: none; padding: 20px; padding-bottom: 80px; }
+        .page.active { display: block; }
+        .swipe-card { background: white; border-radius: 24px; overflow: hidden; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .card-img { height: 400px; background: linear-gradient(135deg, #ff6b6b, #ee5a24); display: flex; align-items: center; justify-content: center; font-size: 80px; color: white; overflow: hidden; }
+        .card-img img { width: 100%; height: 100%; object-fit: cover; }
+        .card-info { padding: 20px; }
+        .card-name { font-size: 28px; font-weight: bold; }
+        .badge { display: inline-block; padding: 6px 14px; background: #f0f0f0; border-radius: 20px; font-size: 12px; margin: 3px; color: #ee5a24; font-weight: bold; }
+        .swipe-buttons { display: flex; justify-content: center; gap: 30px; margin-top: 20px; }
+        .swipe-btn { width: 70px; height: 70px; border-radius: 50%; font-size: 32px; border: none; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.15); transition: transform 0.1s; }
+        .swipe-btn:active { transform: scale(0.95); }
+        .like { background: #4caf50; color: white; }
+        .pass { background: #f44336; color: white; }
+        .match-card { background: white; border-radius: 16px; padding: 15px; display: flex; align-items: center; gap: 15px; margin-bottom: 12px; cursor: pointer; border: 1px solid #ddd; transition: all 0.2s; }
+        .match-card:active { transform: scale(0.98); }
+        .match-avatar { width: 60px; height: 60px; border-radius: 50%; background: linear-gradient(135deg, #ff6b6b, #ee5a24); display: flex; align-items: center; justify-content: center; font-size: 24px; color: white; overflow: hidden; }
+        .match-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .match-name { font-weight: bold; font-size: 18px; }
+        .match-preview { font-size: 12px; color: #999; margin-top: 4px; }
+        .profile-card { background: white; border-radius: 24px; padding: 30px; text-align: center; }
+        .profile-img { width: 140px; height: 140px; border-radius: 70px; object-fit: cover; margin: 0 auto 20px; border: 4px solid #ee5a24; }
+        .chat-header { display: flex; align-items: center; padding: 15px; background: white; border-bottom: 1px solid #ddd; }
+        .back-btn { background: #f0f0f0; border: none; padding: 8px 16px; border-radius: 8px; margin-right: 15px; cursor: pointer; }
+        .chat-area { height: calc(100vh - 120px); display: flex; flex-direction: column; }
+        .messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+        .bubble { max-width: 80%; padding: 10px 16px; border-radius: 20px; word-wrap: break-word; }
+        .sent { background: #ee5a24; color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
+        .received { background: white; color: black; align-self: flex-start; border-bottom-left-radius: 4px; }
+        .input-area { display: flex; gap: 10px; padding: 15px; background: white; border-top: 1px solid #ddd; }
+        .input-area input { flex: 1; margin: 0; }
+        .input-area button { width: auto; padding: 12px 24px; margin: 0; }
+        .empty { text-align: center; color: #999; padding: 60px 20px; }
+        .loading-spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid #fff; border-radius: 50%; border-top-color: transparent; animation: spin 0.6s linear infinite; margin-right: 8px; vertical-align: middle; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .interests-grid { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+        .interest-chip { padding: 8px 16px; background: #f0f0f0; border-radius: 20px; cursor: pointer; font-size: 14px; transition: all 0.2s; }
+        .interest-chip.selected { background: #ee5a24; color: white; }
+        .match-popup { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 24px; padding: 30px; text-align: center; z-index: 1000; box-shadow: 0 10px 40px rgba(0,0,0,0.3); max-width: 300px; width: 90%; animation: bounce 0.5s ease; }
+        .match-popup-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 999; }
+        @keyframes bounce { 0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; } 80% { transform: translate(-50%, -50%) scale(1.05); } 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; } }
+        .match-popup h3 { color: #ee5a24; margin: 15px 0; }
+        .match-popup button { width: auto; padding: 10px 25px; margin-top: 15px; }
+        .notification-badge {
+            background: #ee5a24;
+            color: white;
+            border-radius: 50%;
+            padding: 2px 6px;
+            font-size: 10px;
+            margin-left: 5px;
+        }
+    </style>
+</head>
+<body>
 
+<div id="authScreen" class="auth-screen">
+    <div class="auth-card">
+        <h1>TeamUp</h1>
+        <p>Find your perfect match</p>
+        <div class="tabs">
+            <div class="tab active" id="loginTab">Login</div>
+            <div class="tab" id="signupTab">Sign Up</div>
+        </div>
+        <div id="loginDiv">
+            <input type="email" id="loginEmail" placeholder="Email">
+            <input type="password" id="loginPassword" placeholder="Password">
+            <button id="doLogin">Login</button>
+            <div id="loginMsg"></div>
+        </div>
+        <div id="signupDiv" class="hidden">
+            <input type="text" id="signupName" placeholder="Full Name">
+            <input type="number" id="signupAge" placeholder="Age">
+            <input type="email" id="signupEmail" placeholder="Email">
+            <input type="password" id="signupPassword" placeholder="Password">
+            <textarea id="signupBio" placeholder="Bio (optional)" rows="3"></textarea>
+            <div class="interests-grid" id="interestsGrid">
+                <span class="interest-chip" data-int="dating">❤️ Dating</span>
+                <span class="interest-chip" data-int="friendship">👥 Friendship</span>
+                <span class="interest-chip" data-int="gaming">🎮 Gaming</span>
+                <span class="interest-chip" data-int="study">📚 Study</span>
+                <span class="interest-chip" data-int="business">💼 Business</span>
+            </div>
+            <button id="doSignup">Create Account</button>
+            <div id="signupMsg"></div>
+        </div>
+    </div>
+</div>
+
+<div id="app" class="app">
+    <div class="header">
+        <h2>TeamUp</h2>
+        <button class="logout-btn" id="logoutBtn">Logout</button>
+    </div>
+    
+    <div id="swipePage" class="page active">
+        <div id="cards"><div class="empty">Loading profiles...</div></div>
+        <div class="swipe-buttons">
+            <button class="swipe-btn pass" id="passBtn">✗</button>
+            <button class="swipe-btn like" id="likeBtn">♥</button>
+        </div>
+    </div>
+    
+    <div id="matchesPage" class="page">
+        <div id="matchesList"><div class="empty">No matches yet</div></div>
+    </div>
+    
+    <div id="profilePage" class="page">
+        <div class="profile-card">
+            <img id="profileImg" class="profile-img" src="https://placehold.co/400x400?text=👤">
+            <h2 id="profileName"></h2>
+            <p id="profileEmail"></p>
+            <p id="profileAge"></p>
+            <p id="profileBio"></p>
+            <div id="profileInterests"></div>
+            <input type="file" id="photoUpload" accept="image/*" style="display:none">
+            <button id="uploadPhotoBtn">📸 Upload Photo</button>
+            <button id="editProfileBtn" style="margin-top:10px; background:#f0f0f0; color:#333;">✏️ Edit Profile</button>
+        </div>
+    </div>
+    
+    <div id="chatPage" class="page">
+        <div class="chat-header">
+            <button class="back-btn" id="chatBackBtn">← Back</button>
+            <span id="chatPartnerName">Chat</span>
+        </div>
+        <div class="chat-area">
+            <div id="chatMessages" class="messages"></div>
+            <div class="input-area">
+                <input type="text" id="chatInput" placeholder="Type a message...">
+                <button id="sendMessageBtn">Send</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="nav">
+        <div class="nav-item active" data-page="swipe">🔥<span>Swipe</span></div>
+        <div class="nav-item" data-page="matches">💬<span>Matches</span></div>
+        <div class="nav-item" data-page="profile">👤<span>Profile</span></div>
+    </div>
+</div>
+
+<script>
+    // Firebase Config
+    const firebaseConfig = {
+        apiKey: "AIzaSyCk_rTdccHGEr49Zec_eGSJwfOOJPeHYdY",
+        authDomain: "teamup-68a21.firebaseapp.com",
+        projectId: "teamup-68a21",
+        storageBucket: "teamup-68a21.firebasestorage.app",
+        messagingSenderId: "379106762572",
+        appId: "1:379106762572:web:b80b61d82df788cc0339e9",
+        measurementId: "G-N88RGFQYFM"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    // Cloudinary
+    const CLOUDINARY_CLOUD_NAME = "dweyrxxr8";
+    const CLOUDINARY_UPLOAD_PRESET = "my_unsigned_app";
+
+    let currentUser = null;
+    let currentProfile = null;
+    let selectedInterests = [];
+    let usersList = [];
+    let currentSwipeIndex = 0;
+    let currentMatchId = null;
+    let currentOtherId = null;
+    let chatUnsubscribe = null;
+
+    function showMessage(el, msg, isErr) {
+        el.innerHTML = `<div class="${isErr ? 'error' : 'success'}">${msg}</div>`;
+        setTimeout(() => { if(el) el.innerHTML = ''; }, 4000);
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/[&<>]/g, function(m) {
+            if (m === '&') return '&amp;';
+            if (m === '<') return '&lt;';
+            if (m === '>') return '&gt;';
+            return m;
+        });
+    }
+
+    function showMatchPopup(name, matchId, otherId) {
+        const overlay = document.createElement('div');
+        overlay.className = 'match-popup-overlay';
+        const popup = document.createElement('div');
+        popup.className = 'match-popup';
+        popup.innerHTML = `
+            <div style="font-size:50px;">❤️</div>
+            <h3>It's a Match! 🎉</h3>
+            <p>You and ${escapeHtml(name)} have liked each other.</p>
+            <button id="closeMatchPopup">Send a Message</button>
+        `;
+        document.body.appendChild(overlay);
+        document.body.appendChild(popup);
+        
+        document.getElementById('closeMatchPopup').onclick = () => {
+            overlay.remove();
+            popup.remove();
+            // Open chat immediately
+            openChat(matchId, otherId);
+        };
+        
+        // Auto-close after 5 seconds
+        setTimeout(() => {
+            if(overlay.parentNode) overlay.remove();
+            if(popup.parentNode) popup.remove();
+        }, 5000);
+    }
+
+    // Interest selection
+    document.querySelectorAll('#interestsGrid .interest-chip').forEach(c => {
+        c.onclick = () => {
+            c.classList.toggle('selected');
+            let v = c.dataset.int;
+            if (selectedInterests.includes(v)) {
+                selectedInterests = selectedInterests.filter(i => i !== v);
+            } else {
+                selectedInterests.push(v);
+            }
+        };
+    });
+
+    // Tab switching
+    document.getElementById('loginTab').onclick = () => {
+        document.getElementById('loginTab').classList.add('active');
+        document.getElementById('signupTab').classList.remove('active');
+        document.getElementById('loginDiv').classList.remove('hidden');
+        document.getElementById('signupDiv').classList.add('hidden');
+    };
+    document.getElementById('signupTab').onclick = () => {
+        document.getElementById('signupTab').classList.add('active');
+        document.getElementById('loginTab').classList.remove('active');
+        document.getElementById('signupDiv').classList.remove('hidden');
+        document.getElementById('loginDiv').classList.add('hidden');
+    };
+
+    // SIGNUP
+    document.getElementById('doSignup').onclick = async () => {
+        const name = document.getElementById('signupName').value.trim();
+        const age = parseInt(document.getElementById('signupAge').value);
+        const email = document.getElementById('signupEmail').value.trim();
+        const password = document.getElementById('signupPassword').value;
+        const bio = document.getElementById('signupBio').value.trim();
+        const msgDiv = document.getElementById('signupMsg');
+
+        if (!name || !age || !email || !password) {
+            return showMessage(msgDiv, 'Fill all fields', true);
+        }
+        if (selectedInterests.length === 0) {
+            return showMessage(msgDiv, 'Select an interest', true);
+        }
+        if (age < 18) {
+            return showMessage(msgDiv, 'You must be 18+', true);
+        }
+        if (password.length < 6) {
+            return showMessage(msgDiv, 'Password must be at least 6 characters', true);
+        }
+
+        const btn = document.getElementById('doSignup');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="loading-spinner"></span> Creating...';
+
+        try {
+            const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+            const user = userCredential.user;
+
+            await db.collection('users').doc(user.uid).set({
+                uid: user.uid,
+                name: name,
+                age: age,
+                bio: bio || '',
+                interests: selectedInterests,
+                photo_url: '',
+                likes: [],
+                matches: [],
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+
+            showMessage(msgDiv, '✅ Account created! Please login.', false);
+            
+            document.getElementById('signupName').value = '';
+            document.getElementById('signupAge').value = '';
+            document.getElementById('signupEmail').value = '';
+            document.getElementById('signupPassword').value = '';
+            document.getElementById('signupBio').value = '';
+            selectedInterests = [];
+            document.querySelectorAll('#interestsGrid .interest-chip').forEach(i => i.classList.remove('selected'));
+            
+            setTimeout(() => document.getElementById('loginTab').click(), 2000);
+        } catch (err) {
+            showMessage(msgDiv, '❌ ' + err.message, true);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = 'Create Account';
+        }
+    };
+
+    // LOGIN
+    document.getElementById('doLogin').onclick = async () => {
+        const email = document.getElementById('loginEmail').value.trim();
+        const password = document.getElementById('loginPassword').value;
+        const msgDiv = document.getElementById('loginMsg');
+
+        if (!email || !password) {
+            return showMessage(msgDiv, 'Enter email and password', true);
+        }
+
+        const btn = document.getElementById('doLogin');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="loading-spinner"></span> Logging in...';
+
+        try {
+            const userCredential = await auth.signInWithEmailAndPassword(email, password);
+            currentUser = userCredential.user;
+
+            const userDoc = await db.collection('users').doc(currentUser.uid).get();
+            if (userDoc.exists) {
+                currentProfile = userDoc.data();
+            } else {
+                throw new Error('Profile not found');
+            }
+
+            document.getElementById('authScreen').style.display = 'none';
+            document.getElementById('app').style.display = 'block';
+
+            updateProfileUI();
+            loadCards();
+            loadMatches();
+        } catch (err) {
+            showMessage(msgDiv, '❌ ' + err.message, true);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = 'Login';
+        }
+    };
+
+    function updateProfileUI() {
+        if (!currentProfile) return;
+        document.getElementById('profileName').innerText = currentProfile.name;
+        document.getElementById('profileEmail').innerText = currentUser.email;
+        document.getElementById('profileAge').innerText = currentProfile.age + ' years old';
+        document.getElementById('profileBio').innerText = currentProfile.bio || 'No bio yet';
+        if (currentProfile.photo_url) document.getElementById('profileImg').src = currentProfile.photo_url;
+        document.getElementById('profileInterests').innerHTML = (currentProfile.interests || []).map(i => `<span class="badge">${escapeHtml(i)}</span>`).join('');
+    }
+
+    // Photo Upload
+    document.getElementById('uploadPhotoBtn').onclick = () => document.getElementById('photoUpload').click();
+    
+    document.getElementById('photoUpload').onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const validExts = ['jpg', 'jpeg', 'png', 'webp'];
+        const ext = file.name.split('.').pop().toLowerCase();
+        if (!validExts.includes(ext)) {
+            alert('Invalid file type. Allowed: JPG, PNG, WEBP');
+            return;
+        }
+        
+        if (file.size > 5 * 1024 * 1024) {
+            alert('Image must be under 5MB');
+            return;
+        }
+        
+        const btn = document.getElementById('uploadPhotoBtn');
+        const originalText = btn.innerText;
+        btn.disabled = true;
+        btn.innerText = 'Uploading...';
+        
+        try {
+            let fileToUpload = file;
+            if (file.size > 1 * 1024 * 1024) {
+                fileToUpload = await compressImage(file);
+            }
+            
+            const formData = new FormData();
+            formData.append('file', fileToUpload);
+            formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+            
+            const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
+                method: 'POST',
+                body: formData
+            });
+            
+            const data = await response.json();
+            
+            if (data.error) {
+                throw new Error(data.error.message);
+            }
+            
+            if (!data.secure_url) {
+                throw new Error('No URL returned from Cloudinary');
+            }
+            
+            const photoUrl = data.secure_url;
+            
+            await db.collection('users').doc(currentUser.uid).update({ photo_url: photoUrl });
+            currentProfile.photo_url = photoUrl;
+            document.getElementById('profileImg').src = photoUrl;
+            alert('✅ Photo updated successfully!');
+            
+        } catch (err) {
+            console.error('Upload error:', err);
+            alert('Upload failed: ' + err.message);
+        } finally {
+            btn.disabled = false;
+            btn.innerText = originalText;
+            document.getElementById('photoUpload').value = '';
+        }
+    };
+    
+    function compressImage(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (event) => {
+                const img = new Image();
+                img.src = event.target.result;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+                    const maxSize = 1000;
+                    if (width > maxSize || height > maxSize) {
+                        if (width > height) {
+                            height = (height * maxSize) / width;
+                            width = maxSize;
+                        } else {
+                            width = (width * maxSize) / height;
+                            height = maxSize;
+                        }
+                    }
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    canvas.toBlob((blob) => {
+                        resolve(blob);
+                    }, 'image/jpeg', 0.8);
+                };
+                img.onerror = reject;
+            };
+            reader.onerror = reject;
+        });
+    }
+
+    // LOAD CARDS
+    async function loadCards() {
+        try {
+            const likes = currentProfile.likes || [];
+            const matches = currentProfile.matches || [];
+            
+            const usersSnapshot = await db.collection('users')
+                .where('uid', '!=', currentUser.uid)
+                .get();
+            
+            const users = [];
+            usersSnapshot.forEach(doc => {
+                const userData = doc.data();
+                // Don't show users already liked OR already matched
+                if (!likes.includes(userData.uid) && !matches.includes(userData.uid)) {
+                    users.push({ id: doc.id, ...userData });
+                }
+            });
+            
+            usersList = users;
+            currentSwipeIndex = 0;
+            showCard();
+        } catch (err) {
+            document.getElementById('cards').innerHTML = '<div class="empty">Error loading profiles</div>';
+        }
+    }
+
+    function showCard() {
+        if (currentSwipeIndex >= usersList.length) {
+            document.getElementById('cards').innerHTML = '<div class="empty">No more profiles! Check back later.</div>';
+            return;
+        }
+        
+        const u = usersList[currentSwipeIndex];
+        document.getElementById('cards').innerHTML = `
+            <div class="swipe-card">
+                <div class="card-img">
+                    ${u.photo_url ? `<img src="${u.photo_url}">` : '👤'}
+                </div>
+                <div class="card-info">
+                    <div class="card-name">${escapeHtml(u.name)}</div>
+                    <div class="card-age">${u.age} years old</div>
+                    <div>${(u.interests || []).map(i => `<span class="badge">${escapeHtml(i)}</span>`).join('')}</div>
+                    ${u.bio ? `<div style="margin-top:10px; color:#666;">${escapeHtml(u.bio.substring(0, 100))}${u.bio.length > 100 ? '...' : ''}</div>` : ''}
+                </div>
+            </div>
+        `;
+    }
+
+    // LIKE - Fixed match detection
+    document.getElementById('likeBtn').onclick = async () => {
+        if (currentSwipeIndex >= usersList.length) return;
+        const likedUser = usersList[currentSwipeIndex];
+        
+        const likeBtn = document.getElementById('likeBtn');
+        likeBtn.disabled = true;
+        
+        try {
+            // Add to current user's likes
+            const newLikes = [...(currentProfile.likes || []), likedUser.id];
+            await db.collection('users').doc(currentUser.uid).update({ likes: newLikes });
+            currentProfile.likes = newLikes;
+            
+            // Check if liked user already liked current user
+            const likedUserDoc = await db.collection('users').doc(likedUser.id).get();
+            const likedUserData = likedUserDoc.data();
+            
+            const isMatch = likedUserData.likes && likedUserData.likes.includes(currentUser.uid);
+            
+            if (isMatch) {
+                // Create match document
+                const matchId = [currentUser.uid, likedUser.id].sort().join('_');
+                await db.collection('matches').doc(matchId).set({
+                    id: matchId,
+                    user1: currentUser.uid,
+                    user2: likedUser.id,
+                    created_at: firebase.firestore.FieldValue.serverTimestamp(),
+                    updated_at: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                
+                // Add match ID to both users' matches arrays
+                await db.collection('users').doc(currentUser.uid).update({
+                    matches: firebase.firestore.FieldValue.arrayUnion(matchId)
+                });
+                await db.collection('users').doc(likedUser.id).update({
+                    matches: firebase.firestore.FieldValue.arrayUnion(matchId)
+                });
+                
+                // Update current profile
+                currentProfile.matches = [...(currentProfile.matches || []), matchId];
+                
+                // Show match popup
+                showMatchPopup(likedUser.name, matchId, likedUser.id);
+                
+                // Refresh matches list
+                await loadMatches();
+                
+                // Add notification to nav badge
+                const matchesNav = document.querySelector('.nav-item[data-page="matches"] span');
+                matchesNav.innerHTML = 'Matches 🔴';
+                setTimeout(() => {
+                    matchesNav.innerHTML = 'Matches';
+                }, 3000);
+            }
+            
+            currentSwipeIndex++;
+            showCard();
+        } catch (err) {
+            console.error('Like error:', err);
+            alert('Error: ' + err.message);
+        } finally {
+            likeBtn.disabled = false;
+        }
+    };
+
+    // PASS
+    document.getElementById('passBtn').onclick = () => {
+        if (currentSwipeIndex >= usersList.length) return;
+        currentSwipeIndex++;
+        showCard();
+    };
+
+    // LOAD MATCHES - FIXED
+    async function loadMatches() {
+        try {
+            const matchIds = currentProfile.matches || [];
+            
+            if (matchIds.length === 0) {
+                document.getElementById('matchesList').innerHTML = '<div class="empty">No matches yet</div>';
+                return;
+            }
+            
+            let html = '';
+            for (const matchId of matchIds) {
+                // Get the other user's ID from matchId
+                const ids = matchId.split('_');
+                const otherId = ids[0] === currentUser.uid ? ids[1] : ids[0];
+                
+                const otherDoc = await db.collection('users').doc(otherId).get();
+                if (!otherDoc.exists) continue;
+                
+                const other = otherDoc.data();
+                
+                // Get last message
+                const messagesSnapshot = await db.collection('messages')
+                    .where('matchId', '==', matchId)
+                    .orderBy('created_at', 'desc')
+                    .limit(1)
+                    .get();
+                
+                let preview = 'Tap to chat 💬';
+                let timeAgo = '';
+                if (!messagesSnapshot.empty) {
+                    const lastMsg = messagesSnapshot.docs[0].data();
+                    preview = lastMsg.message.substring(0, 40);
+                    if (lastMsg.message.length > 40) preview += '...';
+                    if (lastMsg.created_at) {
+                        const date = lastMsg.created_at.toDate();
+                        timeAgo = formatTimeAgo(date);
+                    }
+                }
+                
+                html += `
+                    <div class="match-card" data-match-id="${matchId}" data-other-id="${otherId}">
+                        <div class="match-avatar">
+                            ${other.photo_url ? `<img src="${other.photo_url}">` : '👤'}
+                        </div>
+                        <div style="flex:1">
+                            <div class="match-name">${escapeHtml(other.name)}</div>
+                            <div class="match-preview">${escapeHtml(preview)}</div>
+                        </div>
+                        ${timeAgo ? `<div style="font-size:10px; color:#999;">${timeAgo}</div>` : ''}
+                    </div>
+                `;
+            }
+            document.getElementById('matchesList').innerHTML = html;
+            
+            // Add click handlers
+            document.querySelectorAll('.match-card').forEach(card => {
+                card.onclick = () => {
+                    openChat(card.dataset.matchId, card.dataset.otherId);
+                };
+            });
+        } catch (err) {
+            console.error('Load matches error:', err);
+            document.getElementById('matchesList').innerHTML = '<div class="empty">Error loading matches</div>';
+        }
+    }
+    
+    function formatTimeAgo(date) {
+        const seconds = Math.floor((new Date() - date) / 1000);
+        if (seconds < 60) return 'just now';
+        const minutes = Math.floor(seconds / 60);
+        if (minutes < 60) return `${minutes}m ago`;
+        const hours = Math.floor(minutes / 60);
+        if (hours < 24) return `${hours}h ago`;
+        const days = Math.floor(hours / 24);
+        return `${days}d ago`;
+    }
+
+    // CHAT
+    async function openChat(matchId, otherId) {
+        currentMatchId = matchId;
+        currentOtherId = otherId;
+        
+        const otherDoc = await db.collection('users').doc(otherId).get();
+        const other = otherDoc.data();
+        document.getElementById('chatPartnerName').innerText = other.name;
+        
+        // Switch to chat page
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.getElementById('chatPage').classList.add('active');
+        
+        await loadMessages();
+        
+        // Set up real-time listener
+        if (chatUnsubscribe) chatUnsubscribe();
+        chatUnsubscribe = db.collection('messages')
+            .where('matchId', '==', matchId)
+            .orderBy('created_at', 'asc')
+            .onSnapshot((snapshot) => {
+                snapshot.docChanges().forEach((change) => {
+                    if (change.type === 'added') {
+                        addMessage(change.doc.data());
+                    }
+                });
+            });
+    }
+
+    async function loadMessages() {
+        const messagesSnapshot = await db.collection('messages')
+            .where('matchId', '==', currentMatchId)
+            .orderBy('created_at', 'asc')
+            .get();
+        
+        const container = document.getElementById('chatMessages');
+        container.innerHTML = '';
+        
+        if (messagesSnapshot.empty) {
+            container.innerHTML = '<div class="empty">Send a message to start the conversation!</div>';
+        } else {
+            messagesSnapshot.forEach(doc => addMessage(doc.data()));
+        }
+    }
+
+    function addMessage(msg) {
+        const container = document.getElementById('chatMessages');
+        if (container.querySelector('.empty')) container.innerHTML = '';
+        
+        const div = document.createElement('div');
+        div.className = `bubble ${msg.senderId === currentUser.uid ? 'sent' : 'received'}`;
+        div.innerText = msg.message;
+        container.appendChild(div);
+        container.scrollTop = container.scrollHeight;
+    }
+
+    // SEND MESSAGE
+    document.getElementById('sendMessageBtn').onclick = async () => {
+        const input = document.getElementById('chatInput');
+        const msg = input.value.trim();
+        if (!msg) return;
+        
+        try {
+            await db.collection('messages').add({
+                matchId: currentMatchId,
+                senderId: currentUser.uid,
+                message: msg,
+                created_at: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            
+            await db.collection('matches').doc(currentMatchId).update({
+                updated_at: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            
+            input.value = '';
+        } catch (err) {
+            console.error('Send error:', err);
+        }
+    };
+
+    document.getElementById('chatInput').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            document.getElementById('sendMessageBtn').click();
+        }
+    });
+
+    document.getElementById('chatBackBtn').onclick = () => {
+        if (chatUnsubscribe) chatUnsubscribe();
+        document.getElementById('chatPage').classList.remove('active');
+        document.getElementById('matchesPage').classList.add('active');
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        document.querySelector('.nav-item[data-page="matches"]').classList.add('active');
+        loadMatches();
+    };
+
+    // EDIT PROFILE
+    document.getElementById('editProfileBtn').onclick = async () => {
+        const newName = prompt('Enter new name:', currentProfile.name);
+        const newAge = prompt('Enter new age:', currentProfile.age);
+        const newBio = prompt('Enter new bio:', currentProfile.bio || '');
+        
+        const updates = {};
+        if (newName && newName.trim() && newName !== currentProfile.name) updates.name = newName.trim();
+        if (newAge && !isNaN(parseInt(newAge)) && parseInt(newAge) >= 18 && parseInt(newAge) <= 100) updates.age = parseInt(newAge);
+        if (newBio !== undefined && newBio !== currentProfile.bio) updates.bio = newBio.trim() || null;
+        
+        if (Object.keys(updates).length > 0) {
+            try {
+                await db.collection('users').doc(currentUser.uid).update(updates);
+                Object.assign(currentProfile, updates);
+                updateProfileUI();
+                alert('✅ Profile updated!');
+            } catch (err) {
+                alert('Failed to update profile');
+            }
+        }
+    };
+
+    // LOGOUT
+    document.getElementById('logoutBtn').onclick = async () => {
+        if (chatUnsubscribe) chatUnsubscribe();
+        await auth.signOut();
+        location.reload();
+    };
+
+    // NAVIGATION
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.onclick = () => {
+            const page = item.dataset.page;
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            item.classList.add('active');
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById(page + 'Page').classList.add('active');
+            if (page === 'swipe') loadCards();
+            if (page === 'matches') loadMatches();
+        };
+    });
+
+    // AUTO LOGIN
+    auth.onAuthStateChanged(async (user) => {
+        if (user) {
+            currentUser = user;
+            const userDoc = await db.collection('users').doc(user.uid).get();
+            if (userDoc.exists) {
+                currentProfile = userDoc.data();
+                document.getElementById('authScreen').style.display = 'none';
+                document.getElementById('app').style.display = 'block';
+                updateProfileUI();
+                loadCards();
+                loadMatches();
+            }
+        }
+    });
+</script>
+
+</body>
+</html>
