@@ -1,1 +1,943 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>TeamUp - Dating App with Video Calls</title>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <script src="https://download.agora.io/sdk/release/AgoraRTC_N-4.22.0.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial; background: linear-gradient(135deg, #ff6b6b, #ee5a24); min-height: 100vh; }
+        
+        .auth-screen { display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; background: linear-gradient(135deg, #ff6b6b, #ee5a24); }
+        .auth-card { background: white; border-radius: 24px; padding: 40px 30px; max-width: 400px; width: 100%; text-align: center; }
+        h1 { color: #ee5a24; margin-bottom: 10px; }
+        .tabs { display: flex; gap: 12px; margin-bottom: 30px; }
+        .tab { flex: 1; padding: 12px; cursor: pointer; border-radius: 12px; background: #f0f0f0; font-weight: bold; }
+        .tab.active { background: #ee5a24; color: white; }
+        input, textarea { width: 100%; padding: 14px; margin: 8px 0; border: 1px solid #ddd; border-radius: 12px; font-size: 16px; }
+        button { width: 100%; padding: 14px; background: #ee5a24; color: white; border: none; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        button:active { transform: scale(0.98); }
+        button:disabled { opacity: 0.6; cursor: not-allowed; }
+        .hidden { display: none; }
+        .error { background: #ffe6e6; color: red; padding: 10px; border-radius: 8px; margin-top: 10px; }
+        .success { background: #e6ffe6; color: green; padding: 10px; border-radius: 8px; margin-top: 10px; }
+        
+        .location-screen {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+            z-index: 30;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .location-screen.active { display: flex; }
+        .location-card {
+            background: white;
+            border-radius: 32px;
+            padding: 40px 30px;
+            max-width: 400px;
+            width: 100%;
+            text-align: center;
+            animation: fadeInUp 0.5s ease;
+        }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .location-icon { font-size: 80px; margin-bottom: 20px; }
+        .location-card h2 { color: #ee5a24; margin-bottom: 10px; }
+        .location-card p { color: #666; margin-bottom: 30px; line-height: 1.5; }
+        .location-status-text { font-size: 14px; color: #666; margin: 15px 0; padding: 10px; background: #f0f0f0; border-radius: 12px; }
+        .skip-btn { background: transparent; color: #999; box-shadow: none; margin-top: 10px; }
+        .location-btn { background: #2196f3; }
+        .location-btn.success { background: #4caf50; }
+        
+        .app { display: none; max-width: 500px; margin: 0 auto; background: #f5f5f5; min-height: 100vh; }
+        .header { background: white; padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ddd; }
+        .header h2 { color: #ee5a24; }
+        .logout-btn { width: auto; padding: 8px 16px; background: #f0f0f0; color: #666; margin-top: 0; }
+        
+        .nav { position: fixed; bottom: 0; left: 0; right: 0; max-width: 500px; margin: 0 auto; background: white; display: flex; justify-content: space-around; padding: 12px; border-top: 1px solid #ddd; }
+        .nav-item { text-align: center; cursor: pointer; padding: 8px; border-radius: 12px; }
+        .nav-item.active { color: #ee5a24; background: rgba(238,90,36,0.1); }
+        .nav-item span { font-size: 11px; display: block; }
+        
+        .page { display: none; padding: 20px; padding-bottom: 80px; }
+        .page.active { display: block; }
+        
+        .filters-panel { background: white; border-radius: 16px; padding: 15px; margin-bottom: 20px; display: none; }
+        .filters-panel.show { display: block; }
+        .filter-row { display: flex; gap: 10px; margin-bottom: 10px; }
+        .filter-row select, .filter-row input { margin: 0; flex: 1; }
+        .filter-toggle { background: #f0f0f0; border: none; padding: 8px 16px; border-radius: 20px; margin-bottom: 10px; width: auto; font-size: 14px; }
+        
+        .swipe-card { background: white; border-radius: 24px; overflow: hidden; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .card-img { height: 400px; background: linear-gradient(135deg, #ff6b6b, #ee5a24); display: flex; align-items: center; justify-content: center; font-size: 80px; color: white; overflow: hidden; position: relative; }
+        .card-img img { width: 100%; height: 100%; object-fit: cover; }
+        .photo-nav { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 8px; background: rgba(0,0,0,0.5); padding: 8px; }
+        .photo-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.5); cursor: pointer; }
+        .photo-dot.active { background: white; }
+        .photo-arrow { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.5); color: white; border: none; width: 36px; height: 36px; border-radius: 50%; font-size: 20px; cursor: pointer; z-index: 5; }
+        .photo-arrow.left { left: 10px; }
+        .photo-arrow.right { right: 10px; }
+        .card-info { padding: 20px; }
+        .card-name { font-size: 28px; font-weight: bold; }
+        .card-distance { font-size: 14px; color: #666; margin-top: 5px; }
+        .card-distance span { background: #f0f0f0; padding: 4px 10px; border-radius: 20px; display: inline-block; }
+        .badge { display: inline-block; padding: 6px 14px; background: #f0f0f0; border-radius: 20px; font-size: 12px; margin: 3px; color: #ee5a24; font-weight: bold; }
+        .swipe-buttons { display: flex; justify-content: center; gap: 30px; margin-top: 20px; }
+        .swipe-btn { width: 70px; height: 70px; border-radius: 50%; font-size: 32px; border: none; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.15); }
+        .like { background: #4caf50; color: white; }
+        .pass { background: #f44336; color: white; }
+        
+        .match-card { background: white; border-radius: 16px; padding: 15px; display: flex; align-items: center; gap: 15px; margin-bottom: 12px; cursor: pointer; border: 1px solid #ddd; }
+        .match-avatar { width: 60px; height: 60px; border-radius: 50%; background: linear-gradient(135deg, #ff6b6b, #ee5a24); display: flex; align-items: center; justify-content: center; font-size: 24px; color: white; overflow: hidden; }
+        .match-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .match-name { font-weight: bold; font-size: 18px; }
+        .match-preview { font-size: 12px; color: #999; margin-top: 4px; }
+        
+        .profile-card { background: white; border-radius: 24px; padding: 30px; text-align: center; }
+        .photos-grid { display: flex; gap: 10px; overflow-x: auto; margin-bottom: 20px; padding-bottom: 10px; }
+        .photo-item { position: relative; width: 100px; height: 100px; border-radius: 12px; overflow: hidden; border: 2px solid #ee5a24; flex-shrink: 0; }
+        .photo-item img { width: 100%; height: 100%; object-fit: cover; }
+        .photo-item.main { border: 3px solid #4caf50; }
+        .delete-photo { position: absolute; top: 5px; right: 5px; background: rgba(0,0,0,0.6); color: white; border: none; border-radius: 50%; width: 24px; height: 24px; font-size: 14px; cursor: pointer; }
+        .set-main { position: absolute; bottom: 5px; left: 5px; background: rgba(0,0,0,0.6); color: white; border: none; border-radius: 12px; padding: 2px 6px; font-size: 10px; cursor: pointer; }
+        .upload-multi-btn { background: #2196f3; margin-top: 10px; }
+        .reset-btn { background: #f44336; color: white; margin-top: 20px; }
+        .danger-zone { border-top: 1px solid #ddd; margin-top: 20px; padding-top: 20px; }
+        .interests-grid { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+        .interest-chip { padding: 8px 16px; background: #f0f0f0; border-radius: 20px; cursor: pointer; font-size: 14px; }
+        .interest-chip.selected { background: #ee5a24; color: white; }
+        
+        #chatPage {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            max-width: 500px;
+            margin: 0 auto;
+            background: #f5f5f5;
+            z-index: 20;
+            flex-direction: column;
+        }
+        #chatPage.active { display: flex; }
+        
+        .chat-header { background: white; padding: 15px; display: flex; align-items: center; border-bottom: 1px solid #ddd; }
+        .back-btn { background: #f0f0f0; border: none; padding: 8px 16px; border-radius: 8px; margin-right: 15px; cursor: pointer; }
+        .chat-header-info { flex: 1; }
+        .chat-header-name { font-weight: bold; font-size: 18px; }
+        .call-buttons { display: flex; gap: 8px; }
+        .call-btn { background: #4caf50; color: white; border: none; padding: 8px 12px; border-radius: 20px; cursor: pointer; font-size: 12px; }
+        .video-call-btn { background: #2196f3; }
+        
+        .chat-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+        .messages-container { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 8px; }
+        .message-wrapper { display: flex; width: 100%; }
+        .message-wrapper.sent { justify-content: flex-end; }
+        .message-wrapper.received { justify-content: flex-start; }
+        
+        .bubble { max-width: 75%; padding: 10px 14px; border-radius: 18px; word-wrap: break-word; }
+        .bubble.sent { background: #ee5a24; color: white; border-bottom-right-radius: 4px; }
+        .bubble.received { background: white; color: black; border-bottom-left-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        .message-time { font-size: 10px; opacity: 0.7; margin-top: 4px; text-align: right; }
+        
+        .bubble-image { max-width: 200px; border-radius: 12px; overflow: hidden; cursor: pointer; }
+        .bubble-image img { width: 100%; height: auto; display: block; }
+        
+        .voice-message {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 150px;
+        }
+        .play-btn {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+            padding: 0;
+            border-radius: 50%;
+        }
+        .play-btn.sent { color: white; background: rgba(255,255,255,0.2); }
+        .play-btn.received { color: #ee5a24; background: #f0f0f0; }
+        .audio-wave {
+            flex: 1;
+            height: 30px;
+            background: rgba(0,0,0,0.1);
+            border-radius: 15px;
+            position: relative;
+            overflow: hidden;
+        }
+        .audio-wave-fill {
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            width: 0%;
+            background: #4caf50;
+            border-radius: 15px;
+            transition: width 0.1s linear;
+        }
+        .duration { font-size: 11px; min-width: 35px; }
+        
+        .image-preview {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.9);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        .image-preview img { max-width: 90%; max-height: 90%; object-fit: contain; }
+        
+        .typing-indicator {
+            padding: 8px 20px;
+            font-size: 12px;
+            color: #ee5a24;
+            font-style: italic;
+            background: transparent;
+            min-height: 32px;
+        }
+        
+        .input-area {
+            display: flex;
+            gap: 8px;
+            padding: 15px;
+            background: white;
+            border-top: 1px solid #ddd;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .input-area input {
+            flex: 1;
+            margin: 0;
+            padding: 12px;
+            border-radius: 25px;
+            background: #f0f0f0;
+            border: none;
+            min-width: 120px;
+        }
+        .input-area button {
+            width: auto;
+            padding: 12px 16px;
+            margin: 0;
+            border-radius: 25px;
+        }
+        .voice-record-btn { background: #f44336; }
+        .voice-record-btn.recording { background: #ff5722; animation: pulse 1s infinite; }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        .attach-btn { background: #2196f3; font-size: 20px; padding: 10px 16px; }
+        .empty { text-align: center; color: #999; padding: 60px 20px; }
+        .loading-spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid #fff; border-radius: 50%; border-top-color: transparent; animation: spin 0.6s linear infinite; margin-right: 8px; vertical-align: middle; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        .match-popup { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 24px; padding: 30px; text-align: center; z-index: 1000; box-shadow: 0 10px 40px rgba(0,0,0,0.3); max-width: 300px; width: 90%; animation: bounce 0.5s ease; }
+        .match-popup-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 999; }
+        @keyframes bounce {
+            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+            80% { transform: translate(-50%, -50%) scale(1.05); }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+        .match-popup h3 { color: #ee5a24; margin: 15px 0; }
+        .match-popup button { width: auto; padding: 10px 25px; margin-top: 15px; }
+        
+        .report-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 1100;
+            justify-content: center;
+            align-items: center;
+        }
+        .report-modal.active { display: flex; }
+        .report-content {
+            background: white;
+            border-radius: 24px;
+            padding: 30px;
+            max-width: 350px;
+            width: 90%;
+        }
+        .report-reason {
+            padding: 12px;
+            margin: 8px 0;
+            background: #f0f0f0;
+            border-radius: 12px;
+            cursor: pointer;
+        }
+        .report-reason:hover { background: #e0e0e0; }
+        
+        .call-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #000;
+            z-index: 2000;
+            flex-direction: column;
+        }
+        .call-modal.active { display: flex; }
+        .call-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            background: #1a1a1a;
+        }
+        .remote-video {
+            flex: 1;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .remote-video video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        .local-video {
+            position: absolute;
+            bottom: 80px;
+            right: 15px;
+            width: 100px;
+            height: 133px;
+            background: #333;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 2px solid white;
+            z-index: 10;
+            cursor: pointer;
+        }
+        .local-video video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .call-controls {
+            position: absolute;
+            bottom: 20px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            padding: 15px;
+            background: rgba(0,0,0,0.7);
+            z-index: 20;
+        }
+        .call-control-btn {
+            width: 55px;
+            height: 55px;
+            border-radius: 50%;
+            background: #333;
+            color: white;
+            font-size: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+        }
+        .call-control-btn:active { transform: scale(0.95); }
+        .call-control-btn.end-call { background: #f44336; }
+        .call-control-btn.mute { background: #ff9800; }
+        .call-control-btn.video-toggle { background: #2196f3; }
+        .call-control-btn.fullscreen { background: #9c27b0; font-size: 18px; }
+        .call-status {
+            position: absolute;
+            top: 20px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            color: white;
+            background: rgba(0,0,0,0.5);
+            padding: 8px;
+            z-index: 10;
+            font-size: 14px;
+        }
+        
+        .incoming-call-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.95);
+            z-index: 1500;
+            justify-content: center;
+            align-items: center;
+        }
+        .incoming-call-modal.active { display: flex; }
+        .incoming-call-card {
+            background: white;
+            border-radius: 32px;
+            padding: 30px;
+            text-align: center;
+            max-width: 300px;
+            width: 90%;
+            animation: bounce 0.5s ease;
+        }
+        .incoming-call-card .avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 40px;
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            color: white;
+            margin: 0 auto 15px;
+        }
+        .incoming-call-card h3 { color: #ee5a24; margin: 15px 0; }
+        .incoming-call-buttons { display: flex; gap: 15px; margin-top: 20px; }
+        .incoming-call-buttons button { flex: 1; margin: 0; }
+        .answer-btn { background: #4caf50; }
+        .decline-btn { background: #f44336; }
+    </style>
+</head>
+<body>
 
+<div id="authScreen" class="auth-screen">
+    <div class="auth-card">
+        <h1>TeamUp</h1>
+        <p>Find your perfect match</p>
+        <div class="tabs">
+            <div class="tab active" id="loginTab">Login</div>
+            <div class="tab" id="signupTab">Sign Up</div>
+        </div>
+        <div id="loginDiv">
+            <input type="email" id="loginEmail" placeholder="Email">
+            <input type="password" id="loginPassword" placeholder="Password">
+            <button id="doLogin">Login</button>
+            <div id="loginMsg"></div>
+        </div>
+        <div id="signupDiv" class="hidden">
+            <input type="text" id="signupName" placeholder="Full Name">
+            <input type="number" id="signupAge" placeholder="Age">
+            <input type="email" id="signupEmail" placeholder="Email">
+            <input type="password" id="signupPassword" placeholder="Password">
+            <textarea id="signupBio" placeholder="Bio (optional)" rows="3"></textarea>
+            <div class="interests-grid" id="interestsGrid">
+                <span class="interest-chip" data-int="dating">❤️ Dating</span>
+                <span class="interest-chip" data-int="friendship">👥 Friendship</span>
+                <span class="interest-chip" data-int="gaming">🎮 Gaming</span>
+                <span class="interest-chip" data-int="study">📚 Study</span>
+                <span class="interest-chip" data-int="business">💼 Business</span>
+            </div>
+            <button id="doSignup">Create Account</button>
+            <div id="signupMsg"></div>
+        </div>
+    </div>
+</div>
+
+<div id="locationScreen" class="location-screen">
+    <div class="location-card">
+        <div class="location-icon">📍</div>
+        <h2>Enable Location</h2>
+        <p>Allow TeamUp to access your location to find matches near you and show distances.</p>
+        <div id="locationStatusText" class="location-status-text">📍 Location not enabled</div>
+        <button id="enableLocationBtn" class="location-btn">📍 Enable Location</button>
+        <button id="skipLocationBtn" class="skip-btn">Skip for now</button>
+    </div>
+</div>
+
+<div id="reportModal" class="report-modal">
+    <div class="report-content">
+        <h3>Report User</h3>
+        <div class="report-reason" data-reason="Inappropriate behavior">🚫 Inappropriate behavior</div>
+        <div class="report-reason" data-reason="Fake profile">🎭 Fake profile</div>
+        <div class="report-reason" data-reason="Harassment">⚠️ Harassment</div>
+        <div class="report-reason" data-reason="Spam">📧 Spam</div>
+        <div class="report-reason" data-reason="Other">❓ Other</div>
+        <button id="closeReportBtn" style="background:#ccc; color:#333; margin-top:15px;">Cancel</button>
+    </div>
+</div>
+
+<div id="app" class="app">
+    <div class="header">
+        <h2>TeamUp</h2>
+        <button class="logout-btn" id="logoutBtn">Logout</button>
+    </div>
+    
+    <div id="swipePage" class="page active">
+        <button class="filter-toggle" id="filterToggleBtn">🔍 Show Filters</button>
+        <div id="filtersPanel" class="filters-panel">
+            <div class="filter-row">
+                <select id="filterGender">
+                    <option value="all">All Genders</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+            <div class="filter-row">
+                <input type="number" id="filterMinAge" placeholder="Min Age" value="18">
+                <input type="number" id="filterMaxAge" placeholder="Max Age" value="100">
+            </div>
+            <div class="filter-row">
+                <input type="number" id="filterMaxDistance" placeholder="Max Distance (km)" value="50">
+            </div>
+            <button id="applyFiltersBtn">Apply Filters</button>
+        </div>
+        <div id="cards"><div class="empty">Loading profiles...</div></div>
+        <div class="swipe-buttons">
+            <button class="swipe-btn pass" id="passBtn">✗</button>
+            <button class="swipe-btn like" id="likeBtn">♥</button>
+        </div>
+    </div>
+    
+    <div id="matchesPage" class="page">
+        <div id="matchesList"><div class="empty">No matches yet</div></div>
+    </div>
+    
+    <div id="profilePage" class="page">
+        <div class="profile-card">
+            <div id="photosContainer" class="photos-grid"></div>
+            <input type="file" id="multiPhotoUpload" accept="image/jpeg,image/png,image/jpg,image/webp" multiple style="display:none">
+            <button id="uploadMultiBtn" class="upload-multi-btn">📸 Add Photos (Max 6)</button>
+            <h2 id="profileName"></h2>
+            <p id="profileEmail"></p>
+            <p id="profileAge"></p>
+            <p id="profileBio"></p>
+            <div id="profileInterests"></div>
+            <button id="editProfileBtn" style="margin-top:10px; background:#f0f0f0; color:#333;">✏️ Edit Profile</button>
+            <div class="danger-zone">
+                <div class="danger-text">⚠️ Reset all your swipes and matches</div>
+                <button id="resetSwipesBtn" class="reset-btn">🔄 Reset All Swipes</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="chatPage">
+        <div class="chat-header">
+            <button class="back-btn" id="chatBackBtn">← Back</button>
+            <div class="chat-header-info">
+                <div class="chat-header-name" id="chatPartnerName">Chat</div>
+            </div>
+            <div class="call-buttons">
+                <button class="call-btn" id="voiceCallBtn">🎙️ Call</button>
+                <button class="call-btn video-call-btn" id="videoCallBtn">📹 Video</button>
+            </div>
+        </div>
+        <div class="chat-area">
+            <div id="messagesContainer" class="messages-container"></div>
+            <div id="typingIndicator" class="typing-indicator"></div>
+            <div class="input-area">
+                <input type="text" id="chatInput" placeholder="Type a message...">
+                <button id="voiceRecordBtn" class="voice-record-btn">🎤</button>
+                <button id="sendImageBtn" class="attach-btn">📷</button>
+                <button id="sendMessageBtn">Send</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="nav">
+        <div class="nav-item active" data-page="swipe">🔥<span>Swipe</span></div>
+        <div class="nav-item" data-page="matches">💬<span>Matches</span></div>
+        <div class="nav-item" data-page="profile">👤<span>Profile</span></div>
+    </div>
+</div>
+
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyCk_rTdccHGEr49Zec_eGSJwfOOJPeHYdY",
+        authDomain: "teamup-68a21.firebaseapp.com",
+        projectId: "teamup-68a21",
+        storageBucket: "teamup-68a21.firebasestorage.app",
+        messagingSenderId: "379106762572",
+        appId: "1:379106762572:web:b80b61d82df788cc0339e9",
+        measurementId: "G-N88RGFQYFM"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    const AGORA_APP_ID = "5e7034fc36964454854e269d93c5851d";
+    
+    let agoraClient = null;
+    let localTracks = null;
+    let isInCall = false;
+    let currentCallType = null;
+    let isMuted = false;
+    let isVideoOff = false;
+    let callChannelName = null;
+    let isConnecting = false;
+
+    const CLOUDINARY_CLOUD_NAME = "dweyrxxr8";
+    const CLOUDINARY_UPLOAD_PRESET = "teamup_photos";
+
+    let currentUser = null;
+    let currentProfile = null;
+    let pendingUser = null;
+    let pendingUserData = null;
+    let userLocation = null;
+    let selectedInterests = [];
+    let usersList = [];
+    let currentSwipeIndex = 0;
+    let currentMatchId = null;
+    let currentOtherId = null;
+    let messagesUnsubscribe = null;
+    let typingListenerUnsubscribe = null;
+    let typingTimeout = null;
+    let currentFilters = { gender: 'all', minAge: 18, maxAge: 100, maxDistance: 50 };
+    
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let isRecording = false;
+
+    function generateValidChannelName() {
+        const timestamp = Date.now();
+        const randomString = Math.random().toString(36).substring(2, 10);
+        return `call_${timestamp}_${randomString}`;
+    }
+
+    async function initAgora() {
+        if (agoraClient) return;
+        agoraClient = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
+        
+        agoraClient.on("user-published", async (user, mediaType) => {
+            await agoraClient.subscribe(user, mediaType);
+            if (mediaType === "video") {
+                const remoteVideoTrack = user.videoTrack;
+                let retries = 0;
+                while (!document.getElementById('remoteVideoElement') && retries < 20) {
+                    await new Promise(r => setTimeout(r, 100));
+                    retries++;
+                }
+                const remoteContainer = document.getElementById('remoteVideoElement');
+                if (remoteContainer) {
+                    remoteVideoTrack.play(remoteContainer);
+                }
+            }
+            if (mediaType === "audio") {
+                const remoteAudioTrack = user.audioTrack;
+                remoteAudioTrack.play();
+            }
+            const statusElem = document.getElementById('callStatusText');
+            if (statusElem) statusElem.innerText = "Connected";
+        });
+        
+        agoraClient.on("user-unpublished", (user) => {
+            console.log("User unpublished:", user.uid);
+        });
+        
+        agoraClient.on("user-left", (user) => {
+            console.log("User left:", user.uid);
+            endCall();
+        });
+    }
+    
+    async function startAgoraCall(type, channelName) {
+        if (isConnecting || isInCall) {
+            alert("Already in a call or connecting. Please end current call first.");
+            return;
+        }
+        
+        isConnecting = true;
+        
+        try {
+            await initAgora();
+            callChannelName = channelName;
+            currentCallType = type;
+            
+            console.log("Joining channel:", channelName);
+            await agoraClient.join(AGORA_APP_ID, channelName, null, currentUser.uid);
+            console.log("Joined successfully");
+            
+            if (type === 'video') {
+                localTracks = await AgoraRTC.createMicrophoneAndCameraTracks();
+                const localVideoTrack = localTracks[1];
+                
+                let retries = 0;
+                while (!document.getElementById('localVideoElement') && retries < 20) {
+                    await new Promise(r => setTimeout(r, 100));
+                    retries++;
+                }
+                
+                const localContainer = document.getElementById('localVideoElement');
+                if (localContainer) {
+                    localVideoTrack.play(localContainer);
+                }
+                await agoraClient.publish([localTracks[0], localTracks[1]]);
+            } else {
+                localTracks = await AgoraRTC.createMicrophoneAudioTrack();
+                await agoraClient.publish([localTracks]);
+            }
+            
+            isInCall = true;
+            showCallModal(type);
+            
+            await db.collection('calls').doc(channelName).set({
+                channelName: channelName,
+                callerId: currentUser.uid,
+                calleeId: currentOtherId,
+                status: 'ringing',
+                type: type,
+                startedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            
+            // Listen for call acceptance
+            const callUnsub = db.collection('calls').doc(channelName).onSnapshot((doc) => {
+                if (doc.exists && doc.data().status === 'accepted') {
+                    callUnsub();
+                }
+            });
+            
+        } catch (err) {
+            console.error("Agora error:", err);
+            alert("Could not start call: " + err.message);
+            await endCall();
+        } finally {
+            isConnecting = false;
+        }
+    }
+    
+    async function answerAgoraCall(channelName, callType) {
+        if (isConnecting || isInCall) {
+            alert("Already in a call. Please end current call first.");
+            return;
+        }
+        
+        isConnecting = true;
+        
+        try {
+            await initAgora();
+            callChannelName = channelName;
+            currentCallType = callType;
+            
+            console.log("Answering call, joining channel:", channelName);
+            await agoraClient.join(AGORA_APP_ID, channelName, null, currentUser.uid);
+            console.log("Joined successfully");
+            
+            if (callType === 'video') {
+                localTracks = await AgoraRTC.createMicrophoneAndCameraTracks();
+                const localVideoTrack = localTracks[1];
+                
+                let retries = 0;
+                while (!document.getElementById('localVideoElement') && retries < 20) {
+                    await new Promise(r => setTimeout(r, 100));
+                    retries++;
+                }
+                
+                const localContainer = document.getElementById('localVideoElement');
+                if (localContainer) {
+                    localVideoTrack.play(localContainer);
+                }
+                await agoraClient.publish([localTracks[0], localTracks[1]]);
+            } else {
+                localTracks = await AgoraRTC.createMicrophoneAudioTrack();
+                await agoraClient.publish([localTracks]);
+            }
+            
+            isInCall = true;
+            showCallModal(callType);
+            
+            await db.collection('calls').doc(channelName).update({
+                status: 'accepted',
+                acceptedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            
+        } catch (err) {
+            console.error("Answer error:", err);
+            alert("Could not answer call: " + err.message);
+            await endCall();
+        } finally {
+            isConnecting = false;
+        }
+    }
+    
+    function showCallModal(type) {
+        let modal = document.getElementById('callModal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'callModal';
+            modal.className = 'call-modal';
+            modal.innerHTML = `
+                <div class="call-container">
+                    <div class="call-status" id="callStatusText">Ringing...</div>
+                    <div class="remote-video"><video id="remoteVideoElement" autoplay playsinline></video></div>
+                    <div class="local-video"><video id="localVideoElement" autoplay playsinline muted></video></div>
+                    <div class="call-controls">
+                        <button class="call-control-btn mute" id="toggleMuteBtn">🎤</button>
+                        <button class="call-control-btn video-toggle" id="toggleVideoBtn">📹</button>
+                        <button class="call-control-btn fullscreen" id="fullscreenBtn">⛶</button>
+                        <button class="call-control-btn end-call" id="endCallBtn">📞</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+        
+        setTimeout(() => {
+            if (type !== 'video') {
+                const remoteVideoDiv = document.querySelector('#callModal .remote-video');
+                if (remoteVideoDiv) {
+                    remoteVideoDiv.style.background = '#1a1a1a';
+                    remoteVideoDiv.innerHTML = '<div style="color:white; text-align:center; padding-top:50%;">Voice Call</div>';
+                }
+                const toggleVideoBtn = document.getElementById('toggleVideoBtn');
+                if (toggleVideoBtn) toggleVideoBtn.style.display = 'none';
+            } else {
+                const toggleVideoBtn = document.getElementById('toggleVideoBtn');
+                if (toggleVideoBtn) toggleVideoBtn.style.display = 'flex';
+            }
+        }, 100);
+        
+        modal.classList.add('active');
+        
+        const endCallBtn = document.getElementById('endCallBtn');
+        const toggleMuteBtn = document.getElementById('toggleMuteBtn');
+        const toggleVideoBtn = document.getElementById('toggleVideoBtn');
+        const fullscreenBtn = document.getElementById('fullscreenBtn');
+        
+        if (endCallBtn) endCallBtn.onclick = () => endCall();
+        if (toggleMuteBtn) toggleMuteBtn.onclick = () => toggleAudio();
+        if (toggleVideoBtn) toggleVideoBtn.onclick = () => toggleVideo();
+        if (fullscreenBtn) fullscreenBtn.onclick = () => toggleFullscreen();
+    }
+    
+    function toggleAudio() {
+        if (localTracks && localTracks[0]) {
+            localTracks[0].setEnabled(!isMuted);
+            isMuted = !isMuted;
+            const toggleMuteBtn = document.getElementById('toggleMuteBtn');
+            if (toggleMuteBtn) toggleMuteBtn.innerHTML = isMuted ? '🔇' : '🎤';
+        }
+    }
+    
+    function toggleVideo() {
+        if (currentCallType !== 'video') return;
+        if (localTracks && localTracks[1]) {
+            localTracks[1].setEnabled(!isVideoOff);
+            isVideoOff = !isVideoOff;
+            const toggleVideoBtn = document.getElementById('toggleVideoBtn');
+            if (toggleVideoBtn) toggleVideoBtn.innerHTML = isVideoOff ? '📷❌' : '📹';
+        }
+    }
+    
+    function toggleFullscreen() {
+        const remoteVideo = document.getElementById('remoteVideoElement');
+        if (!remoteVideo) return;
+        if (!document.fullscreenElement) {
+            remoteVideo.requestFullscreen();
+        } else {
+            document.exitFullscreen();
+        }
+    }
+    
+    async function endCall() {
+        if (localTracks) {
+            localTracks.forEach(track => {
+                track.close();
+            });
+            localTracks = null;
+        }
+        if (agoraClient && agoraClient.connectionState !== 'DISCONNECTED') {
+            try {
+                await agoraClient.leave();
+            } catch(e) { console.log("Leave error:", e); }
+        }
+        const modal = document.getElementById('callModal');
+        if (modal) modal.classList.remove('active');
+        if (callChannelName) {
+            await db.collection('calls').doc(callChannelName).delete().catch(() => {});
+        }
+        isInCall = false;
+        isConnecting = false;
+        isMuted = false;
+        isVideoOff = false;
+        callChannelName = null;
+        currentCallType = null;
+    }
+    
+    function listenForIncomingCalls() {
+        db.collection('calls')
+            .where('calleeId', '==', currentUser.uid)
+            .where('status', '==', 'ringing')
+            .onSnapshot((snapshot) => {
+                snapshot.forEach((doc) => {
+                    const callData = doc.data();
+                    if (!isInCall && !isConnecting) {
+                        const incomingModal = document.createElement('div');
+                        incomingModal.className = 'incoming-call-modal';
+                        incomingModal.innerHTML = `
+                            <div class="incoming-call-card">
+                                <div class="avatar">📞</div>
+                                <h3>${escapeHtml(callData.callerName || 'Someone')} is calling...</h3>
+                                <p>${callData.type === 'video' ? '📹 Video call' : '🎙️ Voice call'}</p>
+                                <div class="incoming-call-buttons">
+                                    <button class="answer-btn" id="answerCallBtn">Answer</button>
+                                    <button class="decline-btn" id="declineCallBtn">Decline</button>
+                                </div>
+                            </div>
+                        `;
+                        document.body.appendChild(incomingModal);
+                        incomingModal.classList.add('active');
+                        
+                        const answerBtn = document.getElementById('answerCallBtn');
+                        const declineBtn = document.getElementById('declineCallBtn');
+                        
+                        if (answerBtn) {
+                            answerBtn.onclick = async () => {
+                                incomingModal.remove();
+                                await answerAgoraCall(callData.channelName, callData.type);
+                            };
+                        }
+                        if (declineBtn) {
+                            declineBtn.onclick = () => {
+                                incomingModal.remove();
+                                doc.ref.delete();
+                            };
+                        }
+                    }
+                });
+            });
+    }
+
+    // ... (rest of your working functions - calculateDistance, escapeHtml, formatTime, etc.)
+    // For brevity, I'm including only the Agora fixes above.
+    // The rest of your existing functions (chat, swipe, profile, etc.) remain the same.
+    
+    // IMPORTANT: Keep all your existing working code below this line!
+    // The functions above are the only ones that changed.
+    
+</script>
+</body>
+</html>
