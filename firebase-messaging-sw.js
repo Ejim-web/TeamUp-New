@@ -17,8 +17,7 @@ messaging.onBackgroundMessage((payload) => {
     const notificationTitle = payload.notification?.title || 'New message';
     const notificationOptions = {
         body: payload.notification?.body || 'You have a new message',
-        icon: '/favicon.ico',
-        data: payload.data
+        icon: '/favicon.ico'
     };
     self.registration.showNotification(notificationTitle, notificationOptions);
 });
