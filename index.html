@@ -1,1 +1,58 @@
-
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Your Agora Token</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: Arial; padding: 20px; text-align: center;">
+    <h1>🎥 Test Agora Call</h1>
+    <p>Your App ID and Token are ready to test!</p>
+    
+    <button onclick="testConnection()" style="padding: 15px 30px; font-size: 18px;">Test Connection</button>
+    
+    <div id="result" style="margin-top: 20px; padding: 20px; border-radius: 10px;"></div>
+    
+    <script src="https://download.agora.io/sdk/release/AgoraRTC_N-4.22.0.js"></script>
+    <script>
+        const APP_ID = '2ee3d74df01a4e5cacfb952e6e3e51ba';
+        const TOKEN = '007eJxTYDh5b8brbrXrviKTzJlDrJzucxkxJ7OfXSD0zX+6v/Wp7awKDEapqcYp5iYpaQaGiSappsmJyWlJlqZGqWapxqmmhkmJyayiWQ2BjAziG/YzMEIhiC/MkFsZn5JYkpmXHp9YUKAQn5yYk8PAAAC2hiMq';
+        const CHANNEL = 'test_call_123';
+        
+        async function testConnection() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '⏳ Connecting to Agora...';
+            resultDiv.style.background = '#fff3cd';
+            
+            try {
+                // Create client
+                const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
+                
+                // Try to join with your token
+                await client.join(APP_ID, CHANNEL, TOKEN, null);
+                
+                resultDiv.innerHTML = '✅ SUCCESS! You connected to Agora with your token!<br><br>Your token works perfectly! 🎉';
+                resultDiv.style.background = '#d4edda';
+                resultDiv.style.color = '#155724';
+                
+                // Get microphone
+                const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+                await client.publish(audioTrack);
+                
+                resultDiv.innerHTML += '<br>🎤 Microphone is working!';
+                
+                // Clean up after 3 seconds
+                setTimeout(() => {
+                    audioTrack.close();
+                    client.leave();
+                    resultDiv.innerHTML += '<br><br>🔌 Disconnected (test complete)';
+                }, 3000);
+                
+            } catch (err) {
+                resultDiv.innerHTML = '❌ ERROR: ' + err.message;
+                resultDiv.style.background = '#f8d7da';
+                resultDiv.style.color = '#721c24';
+            }
+        }
+    </script>
+</body>
+</html>
