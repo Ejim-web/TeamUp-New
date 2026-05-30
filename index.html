@@ -1,1 +1,757 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>TeamUp - Dating App</title>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js"></script>
+    <style>
+        :root {
+            --bg-primary: #f5f5f5;
+            --bg-secondary: white;
+            --text-primary: #333;
+            --text-secondary: #666;
+            --border: #ddd;
+            --card-bg: white;
+            --header-bg: white;
+            --bubble-received: white;
+            --input-bg: #f0f0f0;
+            --back-btn-bg: #f0f0f0;
+            --back-btn-color: #333;
+        }
+        body.dark {
+            --bg-primary: #1a1a1a;
+            --bg-secondary: #2d2d2d;
+            --text-primary: #e0e0e0;
+            --text-secondary: #aaa;
+            --border: #444;
+            --card-bg: #2d2d2d;
+            --header-bg: #1e1e1e;
+            --bubble-received: #3a3a3a;
+            --input-bg: #3a3a3a;
+            --back-btn-bg: #444;
+            --back-btn-color: #e0e0e0;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: linear-gradient(135deg, #ff6b6b, #ee5a24); min-height: 100vh; }
+        body.dark { background: linear-gradient(135deg, #2c2c2c, #1a1a1a); }
+        
+        /* Auth screen */
+        .auth-screen { display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; background: inherit; }
+        .auth-card { background: var(--bg-secondary); border-radius: 24px; padding: 40px 30px; max-width: 400px; width: 100%; text-align: center; color: var(--text-primary); }
+        .logo-svg-auth { width: 110px; margin: 0 auto 15px; display: block; }
+        h1 { color: #ee5a24; margin-bottom: 10px; }
+        .tabs { display: flex; gap: 12px; margin-bottom: 30px; }
+        .tab { flex: 1; padding: 12px; cursor: pointer; border-radius: 12px; background: #f0f0f0; font-weight: bold; color: #333; }
+        .tab.active { background: #ee5a24; color: white; }
+        input, textarea, select { width: 100%; padding: 14px; margin: 8px 0; border: 1px solid var(--border); border-radius: 12px; font-size: 16px; background: var(--bg-secondary); color: var(--text-primary); }
+        button { width: 100%; padding: 14px; background: #ee5a24; color: white; border: none; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; transition: opacity 0.2s; }
+        button:active { transform: scale(0.98); }
+        button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        .hidden { display: none; }
+        .error { background: #ffe6e6; color: red; padding: 10px; border-radius: 8px; margin-top: 10px; font-size: 14px; }
+        .success { background: #e6ffe6; color: green; padding: 10px; border-radius: 8px; margin-top: 10px; font-size: 14px; }
+        
+        /* Modal overlay for loading and confirmations */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal-content {
+            background: white;
+            border-radius: 24px;
+            padding: 30px;
+            max-width: 300px;
+            width: 90%;
+            text-align: center;
+            color: #333;
+        }
+        .modal-content button { margin-top: 20px; }
+        .loading-spinner { display: inline-block; width: 30px; height: 30px; border: 3px solid #f3f3f3; border-top: 3px solid #ee5a24; border-radius: 50%; animation: spin 1s linear infinite; margin-right: 10px; vertical-align: middle; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        .location-screen { display: none; position: fixed; top:0; left:0; right:0; bottom:0; background: linear-gradient(135deg, #ff6b6b, #ee5a24); z-index:30; justify-content: center; align-items: center; padding:20px; }
+        .location-screen.active { display: flex; }
+        .location-card { background: white; border-radius: 32px; padding: 40px 30px; max-width: 400px; width:100%; text-align:center; animation: fadeInUp 0.5s ease; }
+        @keyframes fadeInUp { from { opacity:0; transform:translateY(30px); } to { opacity:1; transform:translateY(0); } }
+        .location-icon { font-size:80px; margin-bottom:20px; }
+        .location-card h2 { color:#ee5a24; margin-bottom:10px; }
+        .location-status-text { font-size:14px; color:#666; margin:15px 0; padding:10px; background:#f0f0f0; border-radius:12px; }
+        .skip-btn { background:transparent; color:#999; box-shadow:none; margin-top:10px; }
+        .location-btn { background:#2196f3; }
+        
+        .app { display: none; max-width: 500px; margin: 0 auto; background: var(--bg-primary); min-height: 100vh; color: var(--text-primary); }
+        .header { background: var(--header-bg); padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
+        .header-left { display: flex; align-items: center; gap: 10px; }
+        .logo-svg-header { width: 40px; height: 40px; }
+        .header h2 { color: #ee5a24; margin: 0; font-size: 1.4rem; }
+        .logout-btn, .dark-toggle { width: auto; padding: 8px 16px; background: #f0f0f0; color: #666; margin-top: 0; font-size: 14px; cursor: pointer; }
+        .dark-toggle { background: #333; color: white; margin-left: 8px; }
+        
+        /* Bottom navigation */
+        .nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            max-width: 500px;
+            margin: 0 auto;
+            background: var(--header-bg);
+            display: flex;
+            justify-content: space-around;
+            padding: 12px;
+            border-top: 1px solid var(--border);
+            z-index: 200;
+        }
+        .nav-item {
+            text-align: center;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 16px;
+            color: var(--text-primary);
+            position: relative;
+            font-size: 24px;
+            min-width: 60px;
+            transition: all 0.2s;
+        }
+        .nav-item span:not(.badge-count) { font-size: 11px; display: block; margin-top: 4px; }
+        .nav-item.active { color: #ee5a24; background: rgba(238,90,36,0.1); }
+        .profile-nav-icon { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; display: inline-block; margin-bottom: 2px; }
+        .badge-count {
+            position: absolute;
+            top: -5px;
+            right: -10px;
+            background: #f44336;
+            color: white;
+            border-radius: 12px;
+            padding: 2px 6px;
+            font-size: 10px;
+            min-width: 18px;
+            text-align: center;
+        }
+        .page { display: none; padding: 20px; padding-bottom: 85px; }
+        .page.active { display: block; }
+        .likes-page { display: none; padding: 20px; padding-bottom: 95px; }
+        .likes-page.active { display: block; }
+        
+        /* Filters Panel */
+        .filters-panel { 
+            background: var(--card-bg); 
+            border-radius: 16px; 
+            padding: 15px; 
+            margin-bottom: 20px; 
+            display: none; 
+        }
+        .filters-panel.show { display: block; }
+        .filter-row { display: flex; gap: 10px; margin-bottom: 10px; }
+        .filter-row input { margin: 0; flex: 1; padding: 10px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-secondary); color: var(--text-primary); }
+        .filter-toggle { background: #ee5a24; color: white; border: none; padding: 10px 20px; border-radius: 25px; margin-bottom: 15px; width: auto; font-size: 14px; cursor: pointer; }
+        #applyFiltersBtn { background: #4caf50; margin-top: 10px; }
+        
+        /* Swipe card */
+        .swipe-card {
+            background: var(--card-bg);
+            border-radius: 24px;
+            overflow: hidden;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, opacity 0.3s ease;
+            cursor: grab;
+        }
+        .swipe-card:active { cursor: grabbing; }
+        .card-img { height: 500px; background: linear-gradient(135deg, #ff6b6b, #ee5a24); display: flex; align-items: center; justify-content: center; font-size: 80px; color: white; overflow: hidden; position: relative; }
+        .card-img img { width: 100%; height: 100%; object-fit: cover; }
+        .photo-nav { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 8px; background: rgba(0,0,0,0.5); padding: 8px; }
+        .photo-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.5); cursor: pointer; }
+        .photo-dot.active { background: white; }
+        .photo-arrow { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.5); color: white; border: none; width: 36px; height: 36px; border-radius: 50%; font-size: 20px; cursor: pointer; z-index: 5; }
+        .card-info { padding: 20px; }
+        .card-name { font-size: 28px; font-weight: bold; }
+        .badge { display: inline-block; padding: 6px 14px; background: #f0f0f0; border-radius: 20px; font-size: 12px; margin: 3px; color: #ee5a24; font-weight: bold; }
+        .swipe-buttons { display: flex; justify-content: center; gap: 30px; margin-top: 20px; }
+        .swipe-btn { width: 70px; height: 70px; border-radius: 50%; font-size: 32px; border: none; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.15); transition: transform 0.1s; }
+        .swipe-btn:active { transform: scale(0.95); }
+        .like { background: #4caf50; color: white; }
+        .pass { background: #f44336; color: white; }
+        
+        /* Match card */
+        .match-card { background: var(--card-bg); border-radius: 20px; padding: 18px; display: flex; align-items: center; gap: 18px; margin-bottom: 15px; cursor: pointer; border: 1px solid var(--border); }
+        .match-avatar { width: 70px; height: 70px; border-radius: 50%; background: linear-gradient(135deg, #ff6b6b, #ee5a24); display: flex; align-items: center; justify-content: center; font-size: 32px; color: white; overflow: hidden; position: relative; }
+        .match-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .online-dot { position: absolute; bottom: 2px; right: 2px; width: 16px; height: 16px; border-radius: 50%; border: 2px solid white; }
+        .online-dot.online { background: #4caf50; }
+        .online-dot.offline { background: #999; }
+        .match-name { font-weight: bold; font-size: 20px; }
+        .match-preview { font-size: 14px; color: var(--text-secondary); margin-top: 5px; }
+        
+        /* Profile */
+        .profile-card { background: var(--card-bg); border-radius: 24px; padding: 30px; text-align: center; }
+        .profile-avatar { width: 140px; height: 140px; border-radius: 70px; margin: 0 auto 20px; border: 4px solid #ee5a24; overflow: hidden; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #ff6b6b, #ee5a24); cursor: pointer; }
+        .profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .photos-grid { display: flex; gap: 10px; overflow-x: auto; margin-bottom: 20px; padding-bottom: 10px; }
+        .photo-item { position: relative; width: 100px; height: 100px; border-radius: 12px; overflow: hidden; border: 2px solid #ee5a24; flex-shrink: 0; }
+        .photo-item img { width: 100%; height: 100%; object-fit: cover; }
+        .photo-item.main { border: 3px solid #4caf50; }
+        .delete-photo { position: absolute; top: 5px; right: 5px; background: rgba(0,0,0,0.6); color: white; border: none; border-radius: 50%; width: 24px; height: 24px; font-size: 14px; cursor: pointer; }
+        .set-main { position: absolute; bottom: 5px; left: 5px; background: rgba(0,0,0,0.6); color: white; border: none; border-radius: 12px; padding: 2px 6px; font-size: 10px; cursor: pointer; }
+        .upload-multi-btn { background: #2196f3; margin-top: 10px; }
+        .reset-btn { background: #f44336; color: white; margin-top: 20px; }
+        .danger-zone { border-top: 1px solid var(--border); margin-top: 20px; padding-top: 20px; }
+        .interests-grid { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+        .interest-chip { padding: 8px 16px; background: #f0f0f0; border-radius: 20px; cursor: pointer; font-size: 14px; color: #333; }
+        .interest-chip.selected { background: #ee5a24; color: white; }
+        
+        /* Likes */
+        .likes-list { display: flex; flex-direction: column; gap: 12px; }
+        .like-item { background: var(--card-bg); border-radius: 16px; padding: 15px; display: flex; align-items: center; gap: 15px; border: 1px solid var(--border); }
+        .like-avatar { width: 60px; height: 60px; border-radius: 50%; object-fit: cover; }
+        .like-info { flex: 1; }
+        .like-name { font-weight: bold; font-size: 18px; }
+        .like-buttons { display: flex; gap: 8px; }
+        .like-buttons button { margin: 0; padding: 6px 12px; font-size: 12px; width: auto; }
+        .accept-btn { background: #4caf50; }
+        .reject-btn { background: #f44336; }
+        
+        /* Overlay pages */
+        .match-profile-page, #chatPage { z-index: 150; }
+        .match-profile-page {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            max-width: 500px;
+            margin: 0 auto;
+            background: var(--bg-primary);
+            flex-direction: column;
+            overflow-y: auto;
+            padding-bottom: 80px;
+        }
+        .match-profile-page.active { display: flex; }
+        .match-profile-header {
+            background: var(--header-bg);
+            padding: 15px;
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+        }
+        .match-profile-back { background: #f0f0f0; border: none; padding: 8px 16px; border-radius: 8px; margin-right: 15px; cursor: pointer; }
+        .match-profile-name { font-size: 20px; font-weight: bold; flex: 1; }
+        .match-profile-content { padding: 20px; }
+        .match-profile-avatar { text-align: center; margin-bottom: 20px; }
+        .match-profile-avatar img { width: 140px; height: 140px; border-radius: 70px; object-fit: cover; border: 3px solid #ee5a24; }
+        .match-profile-photos { display: flex; gap: 10px; overflow-x: auto; margin-bottom: 20px; }
+        .match-photo-item { width: 150px; height: 150px; border-radius: 16px; overflow: hidden; flex-shrink: 0; border: 2px solid #ee5a24; }
+        .match-photo-item img { width: 100%; height: 100%; object-fit: cover; cursor: pointer; }
+        .match-info-row { margin-bottom: 15px; padding: 10px; background: var(--card-bg); border-radius: 16px; }
+        .match-label { font-weight: bold; color: #ee5a24; margin-bottom: 5px; }
+        .match-bio { color: var(--text-secondary); line-height: 1.4; }
+        .action-buttons { display: flex; gap: 10px; margin: 20px 0; flex-wrap: wrap; }
+        .action-buttons button { flex: 1; margin: 0; min-width: 100px; }
+        .block-btn { background: #f44336; }
+        .report-btn { background: #ff9800; }
+        .chat-btn { background: #4caf50; }
+        
+        /* Chat Page */
+        #chatPage {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            max-width: 500px;
+            margin: 0 auto;
+            background: var(--bg-primary);
+            flex-direction: column;
+            overflow: hidden;
+        }
+        #chatPage.active { display: flex; }
+        .chat-header {
+            background: var(--header-bg);
+            padding: 15px;
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+        .back-btn { background: var(--back-btn-bg); border: none; padding: 8px 12px; border-radius: 8px; margin-right: 12px; cursor: pointer; font-size: 16px; font-weight: bold; color: var(--back-btn-color); }
+        .chat-header-avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; margin-right: 12px; }
+        .chat-header-info { flex: 1; }
+        .chat-header-name { font-weight: bold; font-size: 18px; }
+        .online-status { font-size: 12px; color: #4caf50; }
+        .chat-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .messages-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .input-area {
+            display: flex;
+            align-items: flex-end;
+            gap: 8px;
+            padding: 12px 15px;
+            background: var(--header-bg);
+            border-top: 1px solid var(--border);
+            flex-shrink: 0;
+            margin-bottom: 70px;
+        }
+        .input-area textarea {
+            flex: 1;
+            margin: 0;
+            padding: 10px 16px;
+            border-radius: 24px;
+            background: var(--input-bg);
+            border: none;
+            font-size: 16px;
+            color: var(--text-primary);
+            resize: none;
+            overflow-y: auto;
+            max-height: 100px;
+            line-height: 1.4;
+            font-family: inherit;
+        }
+        .input-area button {
+            width: auto;
+            padding: 10px 16px;
+            margin: 0;
+            border-radius: 30px;
+            background: #ee5a24;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            height: 44px;
+        }
+        .attach-btn, .voice-record-btn {
+            background: var(--input-bg);
+            color: #ee5a24;
+            font-size: 22px;
+            padding: 10px 14px;
+            height: 44px;
+        }
+        .voice-record-btn.recording {
+            background: #ff5722;
+            color: white;
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        .recording-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #ff5722;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 30px;
+            margin: 0 10px 10px 10px;
+            font-size: 14px;
+            justify-content: center;
+        }
+        .message-wrapper { display: flex; width: 100%; margin-bottom: 8px; align-items: flex-start; position: relative; }
+        .message-wrapper.sent { justify-content: flex-end; }
+        .message-wrapper.received { justify-content: flex-start; gap: 8px; }
+        .received-avatar { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; margin-top: 5px; }
+        .bubble { max-width: 75%; padding: 10px 14px; border-radius: 18px; word-wrap: break-word; }
+        .bubble.sent { background: #ee5a24; color: white; border-bottom-right-radius: 4px; }
+        .bubble.received { background: var(--bubble-received); color: var(--text-primary); border-bottom-left-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        .message-time { font-size: 10px; opacity: 0.7; margin-top: 4px; text-align: right; }
+        .seen-indicator { font-size: 10px; margin-left: 6px; color: #aaa; }
+        .seen-indicator.seen { color: #4caf50; }
+        .delete-message-btn {
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            background: #f44336;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 22px;
+            height: 22px;
+            font-size: 12px;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+        .message-wrapper:hover .delete-message-btn { display: flex; }
+        .voice-message { display: flex; align-items: center; gap: 10px; min-width: 150px; }
+        .play-btn { background: none; border: none; font-size: 20px; cursor: pointer; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 50%; }
+        .play-btn.sent { color: white; background: rgba(255,255,255,0.2); }
+        .play-btn.received { color: #ee5a24; background: #f0f0f0; }
+        .audio-wave { flex: 1; height: 30px; background: rgba(0,0,0,0.1); border-radius: 15px; position: relative; overflow: hidden; }
+        .audio-wave-fill { position: absolute; left: 0; top: 0; height: 100%; width: 0%; background: #4caf50; border-radius: 15px; transition: width 0.1s linear; }
+        .duration { font-size: 11px; min-width: 35px; }
+        .typing-indicator { padding: 8px 20px; font-size: 12px; color: #ee5a24; }
+        .image-preview { position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(0,0,0,0.9); z-index:1000; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .empty { text-align: center; color: var(--text-secondary); padding: 60px 20px; }
+        .match-popup { position: fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:white; border-radius:24px; padding:30px; text-align:center; z-index:1000; box-shadow:0 10px 40px rgba(0,0,0,0.3); }
+        .match-popup-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.7); z-index:999; }
+        .report-modal { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.7); z-index:1100; justify-content:center; align-items:center; }
+        .report-modal.active { display:flex; }
+        .report-content { background:white; border-radius:24px; padding:30px; max-width:350px; width:90%; }
+        .report-reason { padding:12px; margin:8px 0; background:#f0f0f0; border-radius:12px; cursor:pointer; }
+        .notification-toast { position:fixed; bottom:80px; left:50%; transform:translateX(-50%); background:#333; color:white; padding:10px 20px; border-radius:30px; z-index:2000; animation: fadeInOut 3s ease; white-space: nowrap; }
+        @keyframes fadeInOut { 0%{opacity:0;} 15%{opacity:1;} 85%{opacity:1;} 100%{opacity:0;} }
+        
+        /* Forgot password link */
+        .forgot-password {
+            text-align: right;
+            margin-top: 5px;
+            font-size: 12px;
+        }
+        .forgot-password a {
+            color: #ee5a24;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .forgot-password a:hover { text-decoration: underline; }
+        
+        /* Verification banner */
+        .verify-banner {
+            background: #ff9800;
+            color: white;
+            padding: 10px;
+            text-align: center;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .verify-banner button {
+            background: white;
+            color: #ff9800;
+            padding: 5px 10px;
+            margin-left: 10px;
+            font-size: 11px;
+            width: auto;
+        }
+    </style>
+</head>
+<body>
 
+<div id="authScreen" class="auth-screen">
+    <div class="auth-card">
+        <svg class="logo-svg-auth" viewBox="0 0 120 100"><circle cx="40" cy="40" r="22" fill="#FFB6C1" stroke="#EE5A24" stroke-width="2.5"/><path d="M20 62 C20 74,35 80,40 80" stroke="#EE5A24" stroke-width="2.5" fill="none"/><circle cx="80" cy="40" r="22" fill="#FFB6C1" stroke="#EE5A24" stroke-width="2.5"/><path d="M100 62 C100 74,85 80,80 80" stroke="#EE5A24" stroke-width="2.5" fill="none"/><path d="M60 54 C60 54,48 44,48 36 C48 30,54 26,60 30 C66 26,72 30,72 36 C72 44,60 54,60 54Z" fill="#EE5A24" stroke="#fff" stroke-width="1.5"/><path d="M30 48 C35 53,45 53,50 48" stroke="#EE5A24" stroke-width="2" fill="none"/><path d="M70 48 C75 53,85 53,90 48" stroke="#EE5A24" stroke-width="2" fill="none"/><text x="60" y="92" font-size="10" fill="#EE5A24" text-anchor="middle" font-weight="bold">TEAMUP</text></svg>
+        <h1>TeamUp</h1>
+        <p>Find your perfect match</p>
+        <div class="tabs"><div class="tab active" id="loginTab">Login</div><div class="tab" id="signupTab">Sign Up</div></div>
+        <div id="loginDiv">
+            <input type="email" id="loginEmail" placeholder="Email">
+            <input type="password" id="loginPassword" placeholder="Password">
+            <div class="forgot-password"><a id="forgotPasswordBtn">Forgot Password?</a></div>
+            <button id="doLogin">Login</button>
+            <div id="loginMsg"></div>
+        </div>
+        <div id="signupDiv" class="hidden">
+            <input type="text" id="signupName" placeholder="Full Name">
+            <input type="number" id="signupAge" placeholder="Age">
+            <input type="email" id="signupEmail" placeholder="Email">
+            <input type="password" id="signupPassword" placeholder="Password">
+            <textarea id="signupBio" placeholder="Bio (optional)" rows="3"></textarea>
+            <select id="signupGoal"><option value="None">None</option><option value="Marriage">Marriage</option><option value="Family">Family</option><option value="Casual">Casual</option><option value="Friendship">Friendship</option></select>
+            <div class="interests-grid" id="interestsGrid"><span class="interest-chip" data-int="dating">❤️ Dating</span><span class="interest-chip" data-int="friendship">👥 Friendship</span><span class="interest-chip" data-int="gaming">🎮 Gaming</span><span class="interest-chip" data-int="study">📚 Study</span><span class="interest-chip" data-int="business">💼 Business</span></div>
+            <button id="doSignup">Create Account</button>
+            <div id="signupMsg"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading/Confirmation Modal -->
+<div id="modalOverlay" class="modal-overlay">
+    <div class="modal-content">
+        <div id="modalMessage">Loading...</div>
+        <button id="modalCloseBtn">OK</button>
+    </div>
+</div>
+
+<div id="locationScreen" class="location-screen"><div class="location-card"><div class="location-icon">📍</div><h2>Enable Location</h2><p>Allow TeamUp to access your location</p><div id="locationStatusText">📍 Location not enabled</div><button id="enableLocationBtn" class="location-btn">📍 Enable Location</button><button id="skipLocationBtn" class="skip-btn">Skip for now</button></div></div>
+<div id="reportModal" class="report-modal"><div class="report-content"><h3>Report User</h3><div class="report-reason" data-reason="Inappropriate">🚫 Inappropriate</div><div class="report-reason" data-reason="Fake">🎭 Fake profile</div><div class="report-reason" data-reason="Harassment">⚠️ Harassment</div><div class="report-reason" data-reason="Spam">📧 Spam</div><button id="closeReportBtn" style="background:#ccc;">Cancel</button></div></div>
+
+<div id="app" class="app">
+    <div class="header"><div class="header-left"><svg width="40" height="40" viewBox="0 0 60 50"><circle cx="20" cy="20" r="11" fill="#FFB6C1" stroke="#EE5A24" stroke-width="1.8"/><circle cx="40" cy="20" r="11" fill="#FFB6C1" stroke="#EE5A24" stroke-width="1.8"/><path d="M30 27 C30 27,24 20,24 15 C24 11,28 8,30 11 C32 8,36 11,36 15 C36 20,30 27,30 27Z" fill="#EE5A24" stroke="white" stroke-width="1"/><path d="M14 30 C18 34,22 34,26 30" stroke="#EE5A24" stroke-width="1.5" fill="none"/><path d="M34 30 C38 34,42 34,46 30" stroke="#EE5A24" stroke-width="1.5" fill="none"/></svg><h2>TeamUp</h2></div><div><button class="dark-toggle" id="darkModeToggle">🌙 Dark Mode</button><button class="logout-btn" id="logoutBtn">Logout</button></div></div>
+    
+    <!-- Email verification banner -->
+    <div id="verifyBanner" class="verify-banner hidden" style="display: none;">
+        Please verify your email to access all features. 
+        <button id="resendVerificationBtn">Resend Email</button>
+    </div>
+    
+    <div id="swipePage" class="page active">
+        <button class="filter-toggle" id="filterToggleBtn">🔍 Show Filters</button>
+        <div id="filtersPanel" class="filters-panel">
+            <div class="filter-row"><input type="number" id="filterMinAge" placeholder="Min Age" value="18"><input type="number" id="filterMaxAge" placeholder="Max Age" value="100"></div>
+            <div class="filter-row"><input type="number" id="filterMaxDistance" placeholder="Max Distance (km)" value="999"></div>
+            <button id="applyFiltersBtn">Apply Filters</button>
+        </div>
+        <div id="cardsContainer"><div class="empty">Loading profiles...</div></div>
+        <div class="swipe-buttons"><button class="swipe-btn pass" id="passBtn">✗</button><button class="swipe-btn like" id="likeBtn">♥</button></div>
+    </div>
+    
+    <div id="matchesPage" class="page"><div id="matchesList"><div class="empty">No matches yet</div></div></div>
+    <div id="likesPage" class="likes-page"><div class="likes-list" id="likesList"></div></div>
+    <div id="profilePage" class="page"><div class="profile-card"><div class="profile-avatar" id="profileAvatar"><img id="profileAvatarImg" style="display:none"></div><input type="file" id="profilePhotoInput" accept="image/*" style="display:none"><div id="photosContainer" class="photos-grid"></div><input type="file" id="multiPhotoUpload" accept="image/*" multiple style="display:none"><button id="uploadMultiBtn" class="upload-multi-btn">📸 Add Photos (Max 6)</button><h2 id="profileName"></h2><p id="profileEmail"></p><p id="profileAge"></p><p id="profileBio"></p><div id="profileInterests"></div><p id="profileGoal"></p><button id="editProfileBtn" style="background:#f0f0f0; color:#333;">✏️ Edit Profile</button><div class="danger-zone"><button id="resetSwipesBtn" class="reset-btn">🔄 Reset All Swipes</button></div></div></div>
+    
+    <div id="matchProfilePage" class="match-profile-page"><div class="match-profile-header"><button class="match-profile-back" id="matchProfileBackBtn">← Back</button><div class="match-profile-name" id="matchProfileName">Loading...</div></div><div class="match-profile-content"><div class="match-profile-avatar"><img id="matchProfileAvatar"></div><div id="matchProfileGoal"></div><div id="matchProfileNameAgeLocation"></div><div id="matchProfilePhotos"></div><div class="match-info-row"><div class="match-label">About</div><div class="match-bio" id="matchProfileBio"></div></div><div class="match-info-row"><div class="match-label">Interests</div><div id="matchProfileInterests"></div></div><div class="action-buttons"><button id="blockUserBtn" class="block-btn">🚫 Block</button><button id="reportUserBtn" class="report-btn">⚠️ Report</button><button id="chatFromProfileBtn" class="chat-btn">💬 Chat</button></div></div></div>
+    
+    <div id="chatPage">
+        <div class="chat-header"><button class="back-btn" id="chatBackBtn">Back</button><img id="chatHeaderAvatar" class="chat-header-avatar"><div class="chat-header-info"><div class="chat-header-name" id="chatPartnerName">Chat</div><div class="online-status" id="onlineStatus">Offline</div></div></div>
+        <div class="chat-area"><div id="messagesContainer" class="messages-container"></div><div id="typingIndicator" class="typing-indicator"></div><div class="input-area"><textarea id="chatInput" rows="1" placeholder="Type a message"></textarea><button id="sendImageBtn" class="attach-btn">📷</button><button id="sendMessageBtn">Send</button><button id="voiceRecordBtn" class="voice-record-btn" style="touch-action: manipulation;">🎤</button></div></div>
+    </div>
+    
+    <div class="nav">
+        <div class="nav-item" data-page="swipe">🔥<span>Swipe</span></div>
+        <div class="nav-item" data-page="matches">💬<span>Matches</span><span id="unreadBadge" class="badge-count hidden"></span></div>
+        <div class="nav-item" data-page="likes">💌<span>Likes</span><span id="likesBadge" class="badge-count hidden"></span></div>
+        <div class="nav-item" data-page="profile" id="profileNavItem"><img id="profileNavIcon" class="profile-nav-icon" style="display:none"><span id="profileNavText">👤</span><span>Profile</span></div>
+    </div>
+</div>
+
+<script>
+    // Firebase configuration
+    const firebaseConfig = {
+        apiKey: "AIzaSyCk_rTdccHGEr49Zec_eGSJwfOOJPeHYdY",
+        authDomain: "teamup-68a21.firebaseapp.com",
+        projectId: "teamup-68a21",
+        storageBucket: "teamup-68a21.firebasestorage.app",
+        messagingSenderId: "379106762572",
+        appId: "1:379106762572:web:b80b61d82df788cc0339e9"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+    const messaging = firebase.messaging();
+    const CLOUDINARY_CLOUD_NAME = "dweyrxxr8";
+    const CLOUDINARY_UPLOAD_PRESET = "teamup_photos";
+
+    let currentUser = null, currentProfile = null, pendingUser = null, pendingUserData = null, userLocation = null;
+    let selectedInterests = [], usersList = [], currentSwipeIndex = 0, currentMatchId = null, currentOtherId = null;
+    let messagesUnsubscribe = null, typingListenerUnsubscribe = null, typingTimeout = null, presenceUnsubscribe = null, incomingLikesUnsubscribe = null;
+    let currentFilters = { minAge: 18, maxAge: 100, maxDistance: 999 };
+    let mediaRecorder = null, audioChunks = [], isRecording = false, recordingStartTime = null, recordingInterval = null;
+    let currentOtherAvatarUrl = '';
+    let touchStartX = 0, touchStartY = 0, touchCurrentX = 0, isSwiping = false;
+    let currentCardElement = null;
+
+    // Helper functions
+    function showModal(message, showCloseBtn = true) {
+        const modal = document.getElementById('modalOverlay');
+        const msgDiv = document.getElementById('modalMessage');
+        const closeBtn = document.getElementById('modalCloseBtn');
+        msgDiv.innerHTML = message;
+        if (showCloseBtn) {
+            closeBtn.style.display = 'block';
+            closeBtn.onclick = () => modal.classList.remove('active');
+        } else {
+            closeBtn.style.display = 'none';
+        }
+        modal.classList.add('active');
+    }
+    
+    function hideModal() {
+        document.getElementById('modalOverlay').classList.remove('active');
+    }
+    
+    function showToast(msg) {
+        let t = document.createElement('div');
+        t.className = 'notification-toast';
+        t.innerText = msg;
+        document.body.appendChild(t);
+        setTimeout(() => t.remove(), 3000);
+    }
+    
+    function showConfirm(message, onConfirm) {
+        const modal = document.getElementById('modalOverlay');
+        const msgDiv = document.getElementById('modalMessage');
+        const closeBtn = document.getElementById('modalCloseBtn');
+        msgDiv.innerHTML = message + '<br><br><button id="confirmYes" style="background:#4caf50; margin-right:10px;">Yes</button><button id="confirmNo" style="background:#f44336;">No</button>';
+        closeBtn.style.display = 'none';
+        modal.classList.add('active');
+        document.getElementById('confirmYes').onclick = () => {
+            modal.classList.remove('active');
+            onConfirm();
+        };
+        document.getElementById('confirmNo').onclick = () => modal.classList.remove('active');
+    }
+    
+    function calculateDistance(lat1,lon1,lat2,lon2){const R=6371;const dLat=(lat2-lat1)*Math.PI/180;const dLon=(lon2-lon1)*Math.PI/180;const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));}
+    function escapeHtml(s){if(!s)return '';return s.replace(/[&<>]/g,function(m){if(m==='&')return '&amp;';if(m==='<')return '&lt;';if(m==='>')return '&gt;';return m;});}
+    function showImagePreview(url){let p=document.createElement('div');p.className='image-preview';p.innerHTML=`<img src="${url}">`;p.onclick=()=>p.remove();document.body.appendChild(p);}
+    
+    function compressImage(file){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.readAsDataURL(file);reader.onload=e=>{const img=new Image();img.src=e.target.result;img.onload=()=>{const canvas=document.createElement('canvas');let w=img.width,h=img.height;const max=800;if(w>max||h>max){if(w>h){h=(h*max)/w;w=max;}else{w=(w*max)/h;h=max;}}canvas.width=w;canvas.height=h;canvas.getContext('2d').drawImage(img,0,0,w,h);canvas.toBlob(b=>resolve(b),'image/jpeg',0.7);};img.onerror=reject;};reader.onerror=reject;});}
+    
+    async function uploadSinglePhoto(file){const valid=['image/jpeg','image/png','image/jpg','image/webp'];if(!valid.includes(file.type))throw new Error('Invalid type');let f=file;if(f.size>500*1024)f=await compressImage(f);const fd=new FormData();fd.append('file',f);fd.append('upload_preset',CLOUDINARY_UPLOAD_PRESET);const res=await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,{method:'POST',body:fd});const data=await res.json();if(data.error)throw new Error(data.error.message);return data.secure_url;}
+    
+    async function uploadMultiplePhotos(files){const current=currentProfile.photos||[];if(current.length+files.length>6){showToast('Max 6 photos');return false;}const btn=document.getElementById('uploadMultiBtn');const orig=btn.innerText;btn.disabled=true;btn.innerText='Uploading...';let urls=[];for(const f of files){try{const url=await uploadSinglePhoto(f);urls.push(url);}catch(e){showToast(`Failed: ${f.name}`);}}if(urls.length){const newPhotos=[...current,...urls];await db.collection('users').doc(currentUser.uid).update({photos:newPhotos});currentProfile.photos=newPhotos;if(!currentProfile.photo_url&&newPhotos.length){await db.collection('users').doc(currentUser.uid).update({photo_url:newPhotos[0]});currentProfile.photo_url=newPhotos[0];}updateProfilePhotosUI();updateProfileAvatar();updateProfileNavIcon();showToast(`✅ ${urls.length} photo(s) uploaded!`);}btn.disabled=false;btn.innerText=orig;return true;}
+    
+    function updateProfilePhotosUI(){const container=document.getElementById('photosContainer');const photos=currentProfile.photos||[];if(!photos.length){container.innerHTML='<div style="color:#999;text-align:center;padding:20px;">No photos yet</div>';return;}let html='';photos.forEach((p,i)=>{html+=`<div class="photo-item ${i===0?'main':''}"><img src="${p}" onclick="showImagePreview('${p}')"><button class="delete-photo" onclick="deletePhoto(${i})">✕</button>${i!==0?`<button class="set-main" onclick="setMainPhoto(${i})">⭐ Main</button>`:'<div class="set-main" style="background:#4caf50;">★ Main</div>'}</div>`;});container.innerHTML=html;}
+    
+    async function deletePhoto(i){const photos=currentProfile.photos||[];if(i>=photos.length)return;showConfirm('Remove this photo?', async () => {photos.splice(i,1);await db.collection('users').doc(currentUser.uid).update({photos});currentProfile.photos=photos;if(i===0&&photos.length)await db.collection('users').doc(currentUser.uid).update({photo_url:photos[0]});else if(!photos.length)await db.collection('users').doc(currentUser.uid).update({photo_url:''});updateProfilePhotosUI();updateProfileAvatar();updateProfileNavIcon();loadCards();});}
+    
+    async function setMainPhoto(i){const photos=currentProfile.photos||[];if(i>=photos.length)return;const main=photos[i];photos.splice(i,1);photos.unshift(main);await db.collection('users').doc(currentUser.uid).update({photos,photo_url:main});currentProfile.photos=photos;currentProfile.photo_url=main;updateProfilePhotosUI();updateProfileAvatar();updateProfileNavIcon();loadCards();showToast('Main photo updated');}
+    
+    function updateProfileAvatar(){const img=document.getElementById('profileAvatarImg');if(currentProfile.photo_url){img.src=currentProfile.photo_url;img.style.display='block';}else img.style.display='none';}
+    function updateProfileNavIcon(){const icon=document.getElementById('profileNavIcon');const txt=document.getElementById('profileNavText');if(currentProfile.photo_url){icon.src=currentProfile.photo_url;icon.style.display='inline-block';txt.style.display='none';}else{icon.style.display='none';txt.style.display='inline-block';}}
+    
+    async function uploadProfilePhoto(file){try{const compressed=await compressImage(file);const fd=new FormData();fd.append('file',compressed);fd.append('upload_preset',CLOUDINARY_UPLOAD_PRESET);const res=await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,{method:'POST',body:fd});const data=await res.json();if(data.error)throw new Error(data.error.message);await db.collection('users').doc(currentUser.uid).update({photo_url:data.secure_url});currentProfile.photo_url=data.secure_url;updateProfileAvatar();updateProfileNavIcon();if(!currentProfile.photos.includes(data.secure_url)){currentProfile.photos.unshift(data.secure_url);await db.collection('users').doc(currentUser.uid).update({photos:currentProfile.photos});updateProfilePhotosUI();}showToast('Profile picture updated');}catch(e){showToast('Upload failed');}}
+    
+    document.getElementById('profileAvatar').onclick=()=>document.getElementById('profilePhotoInput').click();
+    document.getElementById('profilePhotoInput').onchange=async(e)=>{if(e.target.files[0])await uploadProfilePhoto(e.target.files[0]);document.getElementById('profilePhotoInput').value='';};
+    document.getElementById('uploadMultiBtn').onclick=()=>document.getElementById('multiPhotoUpload').click();
+    document.getElementById('multiPhotoUpload').onchange=async(e)=>{if(e.target.files.length)await uploadMultiplePhotos(Array.from(e.target.files));document.getElementById('multiPhotoUpload').value='';};
+    window.deletePhoto=deletePhoto;window.setMainPhoto=setMainPhoto;window.showImagePreview=showImagePreview;
+
+    // Auto-expanding textarea
+    const chatTextarea = document.getElementById('chatInput');
+    function autoResizeTextarea() {
+        chatTextarea.style.height = 'auto';
+        chatTextarea.style.height = Math.min(chatTextarea.scrollHeight, 100) + 'px';
+    }
+    chatTextarea.addEventListener('input', autoResizeTextarea);
+
+    // Voice recording
+    const voiceBtn = document.getElementById('voiceRecordBtn');
+    function startRecording(e){e.preventDefault();if(isRecording)return;if(!currentMatchId){showToast("No active chat");return;}navigator.mediaDevices.getUserMedia({audio:true}).then(stream=>{mediaRecorder=new MediaRecorder(stream);audioChunks=[];mediaRecorder.ondataavailable=event=>audioChunks.push(event.data);mediaRecorder.onstop=async()=>{const blob=new Blob(audioChunks,{type:'audio/webm'});stream.getTracks().forEach(t=>t.stop());if(blob.size>0)await sendVoiceMessage(blob);hideRecordingStatus();};mediaRecorder.start();isRecording=true;recordingStartTime=Date.now();voiceBtn.classList.add('recording');showRecordingStatus();recordingInterval=setInterval(updateRecordingTimer,100);}).catch(err=>{console.error(err);showToast("Microphone access denied");});}
+    function showRecordingStatus(){let div=document.getElementById('recordingStatusDiv');if(!div){div=document.createElement('div');div.id='recordingStatusDiv';div.className='recording-status';const inputArea=document.querySelector('.input-area');inputArea.parentNode.insertBefore(div,inputArea);}div.innerHTML='🔴 Recording... <span id="recordingTimer">0:00</span>';div.style.display='flex';}
+    function updateRecordingTimer(){const span=document.getElementById('recordingTimer');if(span&&recordingStartTime){const sec=Math.floor((Date.now()-recordingStartTime)/1000);const mins=Math.floor(sec/60);const secs=sec%60;span.innerText=`${mins}:${secs<10?'0':''}${secs}`;}}
+    function hideRecordingStatus(){const div=document.getElementById('recordingStatusDiv');if(div)div.style.display='none';if(recordingInterval)clearInterval(recordingInterval);recordingInterval=null;}
+    function stopRecordingAndSend(e){if(!isRecording)return;if(mediaRecorder&&mediaRecorder.state==='recording')mediaRecorder.stop();isRecording=false;voiceBtn.classList.remove('recording');if(recordingStartTime&&(Date.now()-recordingStartTime)<500){showToast("Recording too short, cancelled");hideRecordingStatus();}recordingStartTime=null;}
+    voiceBtn.addEventListener('mousedown',startRecording);voiceBtn.addEventListener('mouseup',stopRecordingAndSend);voiceBtn.addEventListener('mouseleave',stopRecordingAndSend);voiceBtn.addEventListener('touchstart',startRecording);voiceBtn.addEventListener('touchend',stopRecordingAndSend);voiceBtn.addEventListener('touchcancel',stopRecordingAndSend);
+    
+    async function sendVoiceMessage(blob){const reader=new FileReader();reader.readAsDataURL(blob);reader.onloadend=async()=>{const base64=reader.result.split(',')[1];try{const msgRef=db.collection('matches').doc(currentMatchId).collection('messages');await msgRef.add({type:'voice',audioData:base64,duration:Math.round(blob.size/1000),senderId:currentUser.uid,receiverId:currentOtherId,createdAt:firebase.firestore.FieldValue.serverTimestamp(),seen:false});await db.collection('matches').doc(currentMatchId).update({lastMessage:'🎤 Voice message',lastMessageTime:firebase.firestore.FieldValue.serverTimestamp()});await updateUnreadBadge();showToast("Voice message sent");}catch(e){console.error(e);showToast("Failed to send voice");}};}
+
+    // Swipe & Filters
+    async function sendLike(targetId,name){if((currentProfile.likes||[]).includes(targetId)){showToast('Already liked');return;}await db.collection('users').doc(currentUser.uid).update({likes:firebase.firestore.FieldValue.arrayUnion(targetId)});currentProfile.likes.push(targetId);await db.collection('users').doc(targetId).update({incomingLikes:firebase.firestore.FieldValue.arrayUnion(currentUser.uid)});showToast(`Liked ${name}`);}
+    
+    async function loadCards(){try{const likes=currentProfile.likes||[];const matches=currentProfile.matches||[];const snap=await db.collection('users').where('uid','!=',currentUser.uid).get();const users=[];for(const doc of snap.docs){const d=doc.data();if(likes.includes(doc.id)||matches.includes(doc.id))continue;if(d.age<currentFilters.minAge||d.age>currentFilters.maxAge)continue;let dist=null;if(userLocation&&d.location&&currentFilters.maxDistance<9999){dist=calculateDistance(userLocation.lat,userLocation.lng,d.location.lat,d.location.lng);if(dist>currentFilters.maxDistance)continue;}users.push({id:doc.id,...d,distance:dist,currentPhotoIdx:0});}users.sort((a,b)=>{if(a.distance===null&&b.distance===null)return 0;if(a.distance===null)return 1;if(b.distance===null)return -1;return a.distance-b.distance;});usersList=users;currentSwipeIndex=0;displayCurrentCard();}catch(e){console.error(e);document.getElementById('cardsContainer').innerHTML='<div class="empty">Error loading profiles</div>';}}
+    
+    function displayCurrentCard(){if(currentSwipeIndex>=usersList.length){document.getElementById('cardsContainer').innerHTML='<div class="empty">No more profiles. Reset swipes in Profile</div>';return;}const u=usersList[currentSwipeIndex];const photos=u.photos||[];let pHtml='';if(photos.length){pHtml=`<img src="${photos[u.currentPhotoIdx||0]}" id="cardImage">`;if(photos.length>1)pHtml+=`<button class="photo-arrow left" onclick="event.stopPropagation(); changePhoto(${currentSwipeIndex},-1)">◀</button><button class="photo-arrow right" onclick="event.stopPropagation(); changePhoto(${currentSwipeIndex},1)">▶</button><div class="photo-nav" id="photoNav-${currentSwipeIndex}">${photos.map((_,idx)=>`<div class="photo-dot ${idx===(u.currentPhotoIdx||0)?'active':''}" onclick="event.stopPropagation(); goToPhoto(${currentSwipeIndex},${idx})"></div>`).join('')}</div>`;}else pHtml='👤';document.getElementById('cardsContainer').innerHTML=`<div class="swipe-card" id="activeSwipeCard"><div class="card-img">${pHtml}</div><div class="card-info"><div class="card-name">${escapeHtml(u.name)}</div><div class="card-distance">${u.distance!==null?`📍 ${Math.round(u.distance)} km`:'📍 Unknown'}</div><div>${u.age} years old</div><div>${(u.interests||[]).map(i=>`<span class="badge">${escapeHtml(i)}</span>`).join('')}</div>${u.bio?`<div>${escapeHtml(u.bio.substring(0,100))}</div>`:''}</div></div>`;attachSwipeListeners();}
+    
+    function attachSwipeListeners(){const card=document.getElementById('activeSwipeCard');if(!card)return;card.addEventListener('touchstart',onTouchStart,{passive:true});card.addEventListener('touchmove',onTouchMove,{passive:false});card.addEventListener('touchend',onTouchEnd);}
+    function onTouchStart(e){touchStartX=e.touches[0].clientX;touchStartY=e.touches[0].clientY;isSwiping=true;currentCardElement=document.getElementById('activeSwipeCard');if(currentCardElement)currentCardElement.style.transition='none';}
+    function onTouchMove(e){if(!isSwiping)return;touchCurrentX=e.touches[0].clientX;const deltaX=touchCurrentX-touchStartX;if(Math.abs(deltaX)>10){e.preventDefault();if(currentCardElement){currentCardElement.style.transform=`translateX(${deltaX}px) rotate(${deltaX*0.05}deg)`;currentCardElement.style.opacity=1-Math.abs(deltaX)/300;}}}
+    function onTouchEnd(e){if(!isSwiping)return;isSwiping=false;const deltaX=touchCurrentX-touchStartX;if(currentCardElement){currentCardElement.style.transition='transform 0.3s ease, opacity 0.3s ease';currentCardElement.style.transform='';currentCardElement.style.opacity='';}if(Math.abs(deltaX)>100){if(deltaX>0)performLike();else performPass();}}
+    function performLike(){if(currentSwipeIndex>=usersList.length)return;const liked=usersList[currentSwipeIndex];sendLike(liked.id,liked.name).then(()=>{currentSwipeIndex++;displayCurrentCard();});}
+    function performPass(){if(currentSwipeIndex>=usersList.length)return;currentSwipeIndex++;displayCurrentCard();}
+    
+    window.changePhoto=(idx,delta)=>{const u=usersList[idx];const photos=u.photos||[];if(photos.length<=1)return;let newIdx=(u.currentPhotoIdx||0)+delta;if(newIdx<0)newIdx=photos.length-1;if(newIdx>=photos.length)newIdx=0;u.currentPhotoIdx=newIdx;const img=document.getElementById('cardImage');if(img)img.src=photos[newIdx];const nav=document.getElementById(`photoNav-${idx}`);if(nav){const dots=nav.querySelectorAll('.photo-dot');dots.forEach((dot,i)=>{if(i===newIdx)dot.classList.add('active');else dot.classList.remove('active');});}};
+    window.goToPhoto=(idx,photoIdx)=>{const u=usersList[idx];const photos=u.photos||[];if(photoIdx>=photos.length)return;u.currentPhotoIdx=photoIdx;const img=document.getElementById('cardImage');if(img)img.src=photos[photoIdx];const nav=document.getElementById(`photoNav-${idx}`);if(nav){const dots=nav.querySelectorAll('.photo-dot');dots.forEach((dot,i)=>{if(i===photoIdx)dot.classList.add('active');else dot.classList.remove('active');});}};
+    
+    document.getElementById('likeBtn').onclick=()=>performLike();
+    document.getElementById('passBtn').onclick=()=>performPass();
+    document.getElementById('filterToggleBtn').onclick=()=>document.getElementById('filtersPanel').classList.toggle('show');
+    document.getElementById('applyFiltersBtn').onclick=()=>{currentFilters={minAge:parseInt(document.getElementById('filterMinAge').value)||18,maxAge:parseInt(document.getElementById('filterMaxAge').value)||100,maxDistance:parseInt(document.getElementById('filterMaxDistance').value)||999};showToast(`Filters applied`);loadCards();};
+    
+    // Navigation
+    function navigateTo(page){document.getElementById('chatPage').classList.remove('active');document.getElementById('matchProfilePage').classList.remove('active');document.querySelectorAll('.page, .likes-page').forEach(p=>p.classList.remove('active'));if(page==='swipe')document.getElementById('swipePage').classList.add('active');if(page==='matches'){document.getElementById('matchesPage').classList.add('active');loadMatches();updateUnreadBadge();}if(page==='likes'){document.getElementById('likesPage').classList.add('active');renderLikesPage();}if(page==='profile')document.getElementById('profilePage').classList.add('active');document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));document.querySelector(`.nav-item[data-page="${page}"]`).classList.add('active');if(messagesUnsubscribe)messagesUnsubscribe();if(typingListenerUnsubscribe)typingListenerUnsubscribe();if(typingTimeout)clearTimeout(typingTimeout);if(presenceUnsubscribe)presenceUnsubscribe();currentMatchId=null;currentOtherId=null;}
+    document.querySelectorAll('.nav-item').forEach(item=>{item.onclick=()=>navigateTo(item.dataset.page);});
+    
+    async function loadMatches(){try{const matches=currentProfile.matches||[];if(!matches.length){document.getElementById('matchesList').innerHTML='<div class="empty">No matches yet</div>';return;}let html='';for(const mid of matches){const ids=mid.split('_');const otherId=ids[0]===currentUser.uid?ids[1]:ids[0];const otherDoc=await db.collection('users').doc(otherId).get();if(!otherDoc.exists)continue;const other=otherDoc.data();const avatar=other.photo_url||(other.photos&&other.photos[0])||'';let dist='';if(userLocation&&other.location){const d=calculateDistance(userLocation.lat,userLocation.lng,other.location.lat,other.location.lng);dist=`<div>📍 ${Math.round(d)} km</div>`;}const presence=await db.collection('presence').doc(otherId).get();const online=presence.exists&&presence.data().state==='online';const onlineDot=`<span class="online-dot ${online?'online':'offline'}"></span>`;const matchDoc=await db.collection('matches').doc(mid).get();let unread=0;if(matchDoc.exists){const d=matchDoc.data();unread=d.user1===currentUser.uid?(d.unreadCountUser1||0):(d.unreadCountUser2||0);}html+=`<div class="match-card" data-match-id="${mid}" data-other-id="${otherId}"><div class="match-avatar">${avatar?`<img src="${avatar}">`:'👤'}${onlineDot}</div><div><div class="match-name">${escapeHtml(other.name)}</div><div class="match-preview">${matchDoc.data()?.lastMessage||'Tap to chat'} ${unread?`· ${unread} new`:''}</div>${dist}</div></div>`;}document.getElementById('matchesList').innerHTML=html;document.querySelectorAll('.match-card').forEach(card=>{card.onclick=()=>{const mid=card.dataset.matchId;const oid=card.dataset.otherId;showMatchProfile(mid,oid);};});}catch(e){console.error(e);}}
+    
+    async function showMatchProfile(mid,oid){try{const otherDoc=await db.collection('users').doc(oid).get();if(!otherDoc.exists){document.getElementById('matchProfileName').innerText='Not found';return;}const other=otherDoc.data();const photos=other.photos||[];document.getElementById('matchProfileName').innerText=other.name;document.getElementById('matchProfileAvatar').src=other.photo_url||(photos[0]||'');document.getElementById('matchProfileGoal').innerHTML=`Goal: ${other.relationshipGoal||'None'}`;let dist='';if(userLocation&&other.location){const d=Math.round(calculateDistance(userLocation.lat,userLocation.lng,other.location.lat,other.location.lng));dist=`${d} km away`;}else dist='Unknown';document.getElementById('matchProfileNameAgeLocation').innerHTML=`${escapeHtml(other.name)}, ${other.age} · ${dist}`;document.getElementById('matchProfilePhotos').innerHTML=photos.map(p=>`<div class="match-photo-item"><img src="${p}" onclick="showImagePreview('${p}')"></div>`).join('');document.getElementById('matchProfileBio').innerText=other.bio||'No bio';document.getElementById('matchProfileInterests').innerHTML=(other.interests||[]).map(i=>`<span class="badge">${escapeHtml(i)}</span>`).join('');window.currentMatchProfile={matchId:mid,otherId:oid};document.getElementById('matchProfilePage').classList.add('active');document.querySelectorAll('.page, .likes-page').forEach(p=>p.classList.remove('active'));}catch(e){console.error(e);}}
+    
+    document.getElementById('matchProfileBackBtn').onclick=()=>{document.getElementById('matchProfilePage').classList.remove('active');document.getElementById('matchesPage').classList.add('active');document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));document.querySelector('.nav-item[data-page="matches"]').classList.add('active');};
+    document.getElementById('chatFromProfileBtn').onclick=()=>{if(window.currentMatchProfile){document.getElementById('matchProfilePage').classList.remove('active');openChat(window.currentMatchProfile.matchId,window.currentMatchProfile.otherId);}};
+    
+    async function openChat(mid,oid){currentMatchId=mid;currentOtherId=oid;const otherDoc=await db.collection('users').doc(oid).get();const other=otherDoc.data();currentOtherAvatarUrl=other.photo_url||(other.photos&&other.photos[0])||'';document.getElementById('chatPartnerName').innerText=other.name;document.getElementById('chatHeaderAvatar').src=currentOtherAvatarUrl||'';if(presenceUnsubscribe)presenceUnsubscribe();const presenceRef=db.collection('presence').doc(oid);presenceUnsubscribe=presenceRef.onSnapshot(doc=>{if(doc.exists){const status=doc.data().state;const el=document.getElementById('onlineStatus');if(el){el.innerText=status==='online'?'Online':'Offline';el.className='online-status'+(status!=='online'?' offline':'');}}});if(messagesUnsubscribe)messagesUnsubscribe();if(typingListenerUnsubscribe)typingListenerUnsubscribe();document.querySelectorAll('.page, .likes-page').forEach(p=>p.classList.remove('active'));document.getElementById('chatPage').classList.add('active');const container=document.getElementById('messagesContainer');container.innerHTML='<div class="empty">Loading...</div>';await markMessagesAsSeen();const msgRef=db.collection('matches').doc(mid).collection('messages');messagesUnsubscribe=msgRef.orderBy('createdAt','asc').onSnapshot(snap=>{if(snap.empty){container.innerHTML='<div class="empty">💬 No messages yet. Say hello!</div>';return;}container.innerHTML='';snap.forEach(doc=>addMessageToChat(doc.id,doc.data()));setTimeout(()=>{const c=document.getElementById('messagesContainer');if(c)c.scrollTop=c.scrollHeight;},50);snap.docChanges().forEach(change=>{if(change.type==='added'){const msg=change.doc.data();if(msg.receiverId===currentUser.uid&&!msg.seen){change.doc.ref.update({seen:true});if(msg.senderId!==currentUser.uid)showToast(`New message from ${document.getElementById('chatPartnerName').innerText}`);}}});});setupTypingListener();chatTextarea.oninput=()=>{if(currentMatchId&&chatTextarea.value.trim())sendTypingIndicator();};}
+    
+    function addMessageToChat(id,msg){const container=document.getElementById('messagesContainer');if(container.querySelector('.empty'))container.innerHTML='';const isSent=msg.senderId===currentUser.uid;const wrapper=document.createElement('div');wrapper.className=`message-wrapper ${isSent?'sent':'received'}`;if(!isSent){const avatar=document.createElement('img');avatar.className='received-avatar';avatar.src=currentOtherAvatarUrl||'';avatar.onclick=()=>{if(currentOtherAvatarUrl)showImagePreview(currentOtherAvatarUrl);};wrapper.appendChild(avatar);}let bubble;if(msg.type==='image'){bubble=document.createElement('div');bubble.className=`bubble-image`;const img=document.createElement('img');img.src=msg.imageUrl;img.style.maxWidth='200px';img.style.cursor='pointer';img.onclick=()=>showImagePreview(msg.imageUrl);bubble.appendChild(img);const time=document.createElement('div');time.className='message-time';time.innerText=formatTime(msg.createdAt);bubble.appendChild(time);}else if(msg.type==='voice'){bubble=document.createElement('div');bubble.className=`bubble ${isSent?'sent':'received'}`;const voiceDiv=document.createElement('div');voiceDiv.className='voice-message';voiceDiv.innerHTML=`<button class="play-btn ${isSent?'sent':'received'}">▶️</button><div class="audio-wave"><div class="audio-wave-fill"></div></div><span class="duration">${Math.round(msg.duration)}s</span>`;const playBtn=voiceDiv.querySelector('.play-btn');playBtn.onclick=()=>{const audio=new Audio(`data:audio/webm;base64,${msg.audioData}`);audio.play();playBtn.innerText='⏸️';audio.onended=()=>playBtn.innerText='▶️';};bubble.appendChild(voiceDiv);const time=document.createElement('div');time.className='message-time';time.innerText=formatTime(msg.createdAt);bubble.appendChild(time);}else{bubble=document.createElement('div');bubble.className=`bubble ${isSent?'sent':'received'}`;const textDiv=document.createElement('div');textDiv.innerText=msg.text;bubble.appendChild(textDiv);const time=document.createElement('div');time.className='message-time';time.innerText=formatTime(msg.createdAt);bubble.appendChild(time);}if(isSent){const seenSpan=document.createElement('span');seenSpan.className=`seen-indicator ${msg.seen?'seen':''}`;seenSpan.innerText=msg.seen?'✓✓ Seen':'✓ Sent';bubble.appendChild(seenSpan);const delBtn=document.createElement('button');delBtn.innerHTML='✕';delBtn.className='delete-message-btn';delBtn.onclick=(e)=>{e.stopPropagation();showConfirm('Delete this message?', async()=>{await db.collection('matches').doc(currentMatchId).collection('messages').doc(id).delete();showToast('Message deleted');});};wrapper.appendChild(delBtn);}wrapper.appendChild(bubble);container.appendChild(wrapper);}
+    
+    function formatTime(date){if(!date)return '';const d=date.toDate?date.toDate():new Date(date);return d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});}
+    
+    async function markMessagesAsSeen(){if(!currentMatchId||!currentOtherId)return;const msgs=await db.collection('matches').doc(currentMatchId).collection('messages').where('receiverId','==',currentUser.uid).where('seen','==',false).get();const batch=db.batch();msgs.forEach(d=>batch.update(d.ref,{seen:true}));await batch.commit();const matchRef=db.collection('matches').doc(currentMatchId);const matchDoc=await matchRef.get();if(matchDoc.exists){const data=matchDoc.data();const field=data.user1===currentUser.uid?'unreadCountUser1':'unreadCountUser2';await matchRef.update({[field]:0});}await updateUnreadBadge();}
+    
+    function setupTypingListener(){if(typingListenerUnsubscribe)typingListenerUnsubscribe();typingListenerUnsubscribe=db.collection('matches').doc(currentMatchId).onSnapshot(doc=>{if(doc.exists&&doc.data().typing===currentOtherId)document.getElementById('typingIndicator').innerHTML='<div class="typing-dots"><span></span><span></span><span></span></div>';else document.getElementById('typingIndicator').innerHTML='';});}
+    
+    function sendTypingIndicator(){if(typingTimeout)clearTimeout(typingTimeout);db.collection('matches').doc(currentMatchId).update({typing:currentUser.uid}).catch(()=>{});typingTimeout=setTimeout(()=>db.collection('matches').doc(currentMatchId).update({typing:null}).catch(()=>{}),1500);}
+    
+    document.getElementById('sendMessageBtn').onclick=async()=>{const text=chatTextarea.value.trim();if(!text){showToast('Type a message');return;}if(!currentMatchId){showToast('No active chat');return;}const btn=document.getElementById('sendMessageBtn');btn.disabled=true;btn.innerText='Sending...';try{const msgRef=db.collection('matches').doc(currentMatchId).collection('messages');await msgRef.add({type:'text',text,senderId:currentUser.uid,receiverId:currentOtherId,createdAt:firebase.firestore.FieldValue.serverTimestamp(),seen:false});const matchRef=db.collection('matches').doc(currentMatchId);const matchDoc=await matchRef.get();if(!matchDoc.exists)await matchRef.set({id:currentMatchId,user1:currentUser.uid,user2:currentOtherId,created_at:firebase.firestore.FieldValue.serverTimestamp(),lastMessage:text.substring(0,50),lastMessageTime:firebase.firestore.FieldValue.serverTimestamp(),unreadCountUser1:0,unreadCountUser2:0});else await matchRef.update({lastMessage:text.substring(0,50),lastMessageTime:firebase.firestore.FieldValue.serverTimestamp(),typing:null});const data=(await matchRef.get()).data();const unreadField=data.user1===currentOtherId?'unreadCountUser1':'unreadCountUser2';await matchRef.update({[unreadField]:firebase.firestore.FieldValue.increment(1)});chatTextarea.value='';autoResizeTextarea();await updateUnreadBadge();}catch(e){showToast('Error: '+e.message);}finally{btn.disabled=false;btn.innerText='Send';}};
+    
+    document.getElementById('sendImageBtn').onclick=()=>{const inp=document.createElement('input');inp.type='file';inp.accept='image/*';inp.onchange=async(e)=>{const file=e.target.files[0];if(!file||!currentMatchId)return;const btn=document.getElementById('sendImageBtn');btn.disabled=true;btn.innerText='📤';try{const url=await uploadSinglePhoto(file);const msgRef=db.collection('matches').doc(currentMatchId).collection('messages');await msgRef.add({type:'image',imageUrl:url,senderId:currentUser.uid,receiverId:currentOtherId,createdAt:firebase.firestore.FieldValue.serverTimestamp(),seen:false});await db.collection('matches').doc(currentMatchId).update({lastMessage:'📷 Image',lastMessageTime:firebase.firestore.FieldValue.serverTimestamp()});await updateUnreadBadge();}catch(err){showToast('Upload failed');}finally{btn.disabled=false;btn.innerText='📷';}};inp.click();};
+    
+    document.getElementById('chatBackBtn').onclick=()=>{if(messagesUnsubscribe)messagesUnsubscribe();if(typingListenerUnsubscribe)typingListenerUnsubscribe();if(typingTimeout)clearTimeout(typingTimeout);if(presenceUnsubscribe)presenceUnsubscribe();document.getElementById('chatPage').classList.remove('active');document.getElementById('matchesPage').classList.add('active');document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));document.querySelector('.nav-item[data-page="matches"]').classList.add('active');loadMatches();updateUnreadBadge();};
+    
+    async function updateUnreadBadge(){if(!currentUser)return;const matches=currentProfile.matches||[];let total=0;for(const mid of matches){const doc=await db.collection('matches').doc(mid).get();if(doc.exists){const d=doc.data();total+=d.user1===currentUser.uid?(d.unreadCountUser1||0):(d.unreadCountUser2||0);}}const badge=document.getElementById('unreadBadge');if(total>0){badge.innerText=total>9?'9+':total;badge.classList.remove('hidden');}else badge.classList.add('hidden');}
+    
+    async function renderLikesPage(){const inc=currentProfile.incomingLikes||[];const container=document.getElementById('likesList');if(!inc.length){container.innerHTML='<div class="empty">No likes yet</div>';return;}container.innerHTML='';for(const uid of inc){const doc=await db.collection('users').doc(uid).get();if(!doc.exists)continue;const u=doc.data();const div=document.createElement('div');div.className='like-item';div.innerHTML=`<img class="like-avatar" src="${u.photo_url||''}" onclick="showImagePreview('${u.photo_url||''}')"><div class="like-info"><div class="like-name">${escapeHtml(u.name)}</div></div><div class="like-buttons"><button class="accept-btn">❤️ Like Back</button><button class="reject-btn">✗ Reject</button></div>`;container.appendChild(div);div.querySelector('.accept-btn').onclick=()=>acceptLike(uid);div.querySelector('.reject-btn').onclick=()=>rejectLike(uid);}}
+    
+    async function acceptLike(uid){await db.collection('users').doc(currentUser.uid).update({incomingLikes:firebase.firestore.FieldValue.arrayRemove(uid)});currentProfile.incomingLikes=(currentProfile.incomingLikes||[]).filter(id=>id!==uid);const mid=[currentUser.uid,uid].sort().join('_');const matchDoc=await db.collection('matches').doc(mid).get();if(!matchDoc.exists){await db.collection('matches').doc(mid).set({id:mid,user1:currentUser.uid,user2:uid,created_at:firebase.firestore.FieldValue.serverTimestamp(),unreadCountUser1:0,unreadCountUser2:0});await db.collection('users').doc(currentUser.uid).update({matches:firebase.firestore.FieldValue.arrayUnion(mid)});await db.collection('users').doc(uid).update({matches:firebase.firestore.FieldValue.arrayUnion(mid)});currentProfile.matches.push(mid);const otherDoc=await db.collection('users').doc(uid).get();showMatchPopup(otherDoc.data()?.name||'Someone',mid,uid);await loadMatches();}renderLikesPage();updateLikesBadge();}
+    
+    function showMatchPopup(name,mid,oid){const overlay=document.createElement('div');overlay.className='match-popup-overlay';const popup=document.createElement('div');popup.className='match-popup';popup.innerHTML=`<div style="font-size:50px;">❤️</div><h3>It's a Match!</h3><p>You and ${escapeHtml(name)} liked each other.</p><button id="closeMatchPopup">Send a Message</button>`;document.body.appendChild(overlay);document.body.appendChild(popup);document.getElementById('closeMatchPopup').onclick=()=>{overlay.remove();popup.remove();openChat(mid,oid);};setTimeout(()=>{overlay.remove();popup.remove();},5000);}
+    
+    async function rejectLike(uid){await db.collection('users').doc(currentUser.uid).update({incomingLikes:firebase.firestore.FieldValue.arrayRemove(uid)});currentProfile.incomingLikes=(currentProfile.incomingLikes||[]).filter(id=>id!==uid);renderLikesPage();updateLikesBadge();}
+    
+    function updateLikesBadge(){const cnt=(currentProfile.incomingLikes||[]).length;const badge=document.getElementById('likesBadge');if(cnt>0){badge.innerText=cnt>9?'9+':cnt;badge.classList.remove('hidden');}else badge.classList.add('hidden');}
+    
+    document.getElementById('resetSwipesBtn').onclick=async()=>{showConfirm('Reset all swipes and matches? This action cannot be undone.', async()=>{await db.collection('users').doc(currentUser.uid).update({likes:[],matches:[],incomingLikes:[]});const snap1=await db.collection('matches').where('user1','==',currentUser.uid).get();for(const d of snap1.docs)await db.collection('matches').doc(d.id).delete();const snap2=await db.collection('matches').where('user2','==',currentUser.uid).get();for(const d of snap2.docs)await db.collection('matches').doc(d.id).delete();currentProfile.likes=[];currentProfile.matches=[];currentProfile.incomingLikes=[];showToast('Reset complete');loadCards();updateUnreadBadge();});};
+    
+    document.getElementById('blockUserBtn').onclick=async()=>{if(!window.currentMatchProfile)return;showConfirm('Block this user?', async()=>{await db.collection('users').doc(currentUser.uid).update({blocked:firebase.firestore.FieldValue.arrayUnion(window.currentMatchProfile.otherId)});await db.collection('matches').doc(window.currentMatchProfile.matchId).delete();currentProfile.matches=currentProfile.matches.filter(m=>m!==window.currentMatchProfile.matchId);await loadMatches();document.getElementById('matchProfilePage').classList.remove('active');showToast('User blocked');});};
+    
+    document.getElementById('reportUserBtn').onclick=()=>{document.getElementById('reportModal').classList.add('active');window.reportingUserId=window.currentMatchProfile?.otherId;};
+    document.querySelectorAll('.report-reason').forEach(btn=>{btn.onclick=async()=>{if(window.reportingUserId){await db.collection('reports').add({reporterId:currentUser.uid,reportedId:window.reportingUserId,reason:btn.dataset.reason,timestamp:firebase.firestore.FieldValue.serverTimestamp()});showToast('Report submitted');}document.getElementById('reportModal').classList.remove('active');};});
+    document.getElementById('closeReportBtn').onclick=()=>document.getElementById('reportModal').classList.remove('active');
+    
+    document.getElementById('editProfileBtn').onclick=async()=>{const newName=prompt('Name',currentProfile.name);const newAge=prompt('Age',currentProfile.age);const newBio=prompt('Bio',currentProfile.bio);const newGoal=prompt('Relationship goal (None,Marriage,Family,Casual,Friendship)',currentProfile.relationshipGoal||'None');if(newName)await db.collection('users').doc(currentUser.uid).update({name:newName});if(newAge)await db.collection('users').doc(currentUser.uid).update({age:parseInt(newAge)});if(newBio)await db.collection('users').doc(currentUser.uid).update({bio:newBio});if(newGoal&&['None','Marriage','Family','Casual','Friendship'].includes(newGoal)){await db.collection('users').doc(currentUser.uid).update({relationshipGoal:newGoal});currentProfile.relationshipGoal=newGoal;}if(newName)currentProfile.name=newName;if(newAge)currentProfile.age=parseInt(newAge);if(newBio)currentProfile.bio=newBio;updateProfileUI();showToast('Profile updated');};
+    
+    function updateProfileUI(){if(!currentProfile)return;document.getElementById('profileName').innerText=currentProfile.name;document.getElementById('profileEmail').innerText=currentUser.email;document.getElementById('profileAge').innerText=currentProfile.age+' years old';document.getElementById('profileBio').innerText=currentProfile.bio||'No bio';document.getElementById('profileInterests').innerHTML=(currentProfile.interests||[]).map(i=>`<span class="badge">${escapeHtml(i)}</span>`).join('');document.getElementById('profileGoal').innerText=currentProfile.relationshipGoal||'None';}
+    
+    // Logout with confirmation
+    document.getElementById('logoutBtn').onclick=async()=>{showConfirm('Are you sure you want to logout?', async()=>{if(messagesUnsubscribe)messagesUnsubscribe();if(presenceUnsubscribe)presenceUnsubscribe();await auth.signOut();location.reload();});};
+    
+    // Forgot password
+    document.getElementById('forgotPasswordBtn').onclick=async()=>{const email = prompt('Enter your email address to reset password:');if(email){showModal('Sending reset email...', false);try{await auth.sendPasswordResetEmail(email);hideModal();showToast('Password reset email sent! Check your inbox.');}catch(e){hideModal();showToast('Error: ' + e.message);}}};
+    
+    // Resend verification email
+    document.getElementById('resendVerificationBtn')?.addEventListener('click', async()=>{if(currentUser && !currentUser.emailVerified){showModal('Sending verification email...', false);try{await currentUser.sendEmailVerification();hideModal();showToast('Verification email sent! Check your inbox.');}catch(e){hideModal();showToast('Error: ' + e.message);}}});
+    
+    // Signup
+    document.getElementById('doSignup').onclick=async()=>{const name=document.getElementById('signupName').value.trim();const age=parseInt(document.getElementById('signupAge').value);const email=document.getElementById('signupEmail').value.trim();const pwd=document.getElementById('signupPassword').value;const bio=document.getElementById('signupBio').value.trim();const goal=document.getElementById('signupGoal').value;if(!name||!age||!email||!pwd)return showToast('Fill all fields');if(selectedInterests.length===0)return showToast('Select an interest');if(age<18)return showToast('You must be 18+');if(pwd.length<6)return showToast('Password must be at least 6 characters');const btn=document.getElementById('doSignup');btn.disabled=true;btn.innerText='Creating...';try{const cred=await auth.createUserWithEmailAndPassword(email,pwd);const user=cred.user;await user.sendEmailVerification();const data={uid:user.uid,name,age,bio:bio||'',interests:selectedInterests,photo_url:'',photos:[],likes:[],incomingLikes:[],matches:[],location:null,locationEnabled:false,relationshipGoal:goal,createdAt:firebase.firestore.FieldValue.serverTimestamp()};await db.collection('users').doc(user.uid).set(data);showToast('Account created! Please verify your email.');selectedInterests=[];document.querySelectorAll('.interest-chip').forEach(c=>c.classList.remove('selected'));showLocationPage(user,data);}catch(e){showToast(e.message);}finally{btn.disabled=false;btn.innerText='Create Account';}};
+    
+    // Login
+    document.getElementById('doLogin').onclick=async()=>{const email=document.getElementById('loginEmail').value.trim();const pwd=document.getElementById('loginPassword').value;if(!email||!pwd)return showToast('Enter email and password');const btn=document.getElementById('doLogin');btn.disabled=true;btn.innerText='Logging...';try{const cred=await auth.signInWithEmailAndPassword(email,pwd);currentUser=cred.user;const doc=await db.collection('users').doc(currentUser.uid).get();if(doc.exists){currentProfile=doc.data();userLocation=currentProfile.location||null;if(!currentProfile.incomingLikes)currentProfile.incomingLikes=[];document.getElementById('authScreen').style.display='none';document.getElementById('app').style.display='block';updateProfileUI();updateProfilePhotosUI();updateProfileAvatar();updateProfileNavIcon();loadCards();loadMatches();setupPresence();if(incomingLikesUnsubscribe)incomingLikesUnsubscribe();incomingLikesUnsubscribe=db.collection('users').doc(currentUser.uid).onSnapshot(d=>{if(d.exists){currentProfile.incomingLikes=d.data().incomingLikes||[];if(document.getElementById('likesPage').classList.contains('active'))renderLikesPage();updateLikesBadge();}});setupMatchesListener();await updateUnreadBadge();if(!currentUser.emailVerified){document.getElementById('verifyBanner').style.display='flex';}else{document.getElementById('verifyBanner').style.display='none';}}else throw new Error('Profile not found');}catch(e){showToast('Login failed: '+e.message);}finally{btn.disabled=false;btn.innerText='Login';}};
+    
+    document.getElementById('loginTab').onclick=()=>{document.getElementById('loginTab').classList.add('active');document.getElementById('signupTab').classList.remove('active');document.getElementById('loginDiv').classList.remove('hidden');document.getElementById('signupDiv').classList.add('hidden');};
+    document.getElementById('signupTab').onclick=()=>{document.getElementById('signupTab').classList.add('active');document.getElementById('loginTab').classList.remove('active');document.getElementById('signupDiv').classList.remove('hidden');document.getElementById('loginDiv').classList.add('hidden');};
+    document.querySelectorAll('#interestsGrid .interest-chip').forEach(c=>{c.onclick=()=>{c.classList.toggle('selected');const v=c.dataset.int;if(selectedInterests.includes(v))selectedInterests=selectedInterests.filter(i=>i!==v);else selectedInterests.push(v);};});
+    
+    function showLocationPage(user,data){pendingUser=user;pendingUserData=data;document.getElementById('locationScreen').classList.add('active');}
+    document.getElementById('enableLocationBtn').onclick=()=>{if(navigator.geolocation){const btn=document.getElementById('enableLocationBtn');btn.disabled=true;btn.innerText='Getting...';navigator.geolocation.getCurrentPosition(async(pos)=>{const loc={lat:pos.coords.latitude,lng:pos.coords.longitude};document.getElementById('locationStatusText').innerHTML=`✅ Location: ${loc.lat.toFixed(4)}`;btn.innerHTML='✅ Continue';btn.classList.add('success');await saveLocationAndProceed(loc);},()=>{showToast('Location denied');btn.disabled=false;btn.innerText='📍 Enable Location';});}else showToast('Not supported');};
+    document.getElementById('skipLocationBtn').onclick=async()=>await saveLocationAndProceed(null);
+    
+    async function saveLocationAndProceed(loc){if(pendingUser&&pendingUserData){await db.collection('users').doc(pendingUser.uid).update({location:loc,locationEnabled:!!loc});pendingUserData.location=loc;}document.getElementById('locationScreen').classList.remove('active');document.getElementById('authScreen').style.display='none';document.getElementById('app').style.display='block';currentUser=pendingUser;currentProfile=pendingUserData;userLocation=loc;updateProfileUI();updateProfilePhotosUI();updateProfileAvatar();updateProfileNavIcon();loadCards();loadMatches();setupPresence();if(incomingLikesUnsubscribe)incomingLikesUnsubscribe();incomingLikesUnsubscribe=db.collection('users').doc(currentUser.uid).onSnapshot(d=>{if(d.exists){currentProfile.incomingLikes=d.data().incomingLikes||[];if(document.getElementById('likesPage').classList.contains('active'))renderLikesPage();updateLikesBadge();}});setupMatchesListener();if(!currentUser.emailVerified){document.getElementById('verifyBanner').style.display='flex';}}
+    
+    async function setupPresence(){const ref=db.collection('presence').doc(currentUser.uid);await ref.set({state:'online',lastSeen:firebase.firestore.FieldValue.serverTimestamp()});window.addEventListener('beforeunload',()=>ref.set({state:'offline',lastSeen:firebase.firestore.FieldValue.serverTimestamp()}));}
+    function setupMatchesListener(){db.collection('users').doc(currentUser.uid).onSnapshot(doc=>{if(doc.exists&&doc.data().matches!==currentProfile.matches){currentProfile.matches=doc.data().matches||[];updateUnreadBadge();loadMatches();}});}
+    
+    auth.onAuthStateChanged(async(user)=>{if(user&&!pendingUser&&!currentUser){currentUser=user;const doc=await db.collection('users').doc(user.uid).get();if(doc.exists){currentProfile=doc.data();userLocation=currentProfile.location||null;if(!currentProfile.incomingLikes)currentProfile.incomingLikes=[];document.getElementById('authScreen').style.display='none';document.getElementById('app').style.display='block';updateProfileUI();updateProfilePhotosUI();updateProfileAvatar();updateProfileNavIcon();loadCards();loadMatches();setupPresence();if(incomingLikesUnsubscribe)incomingLikesUnsubscribe();incomingLikesUnsubscribe=db.collection('users').doc(currentUser.uid).onSnapshot(d=>{if(d.exists){currentProfile.incomingLikes=d.data().incomingLikes||[];if(document.getElementById('likesPage').classList.contains('active'))renderLikesPage();updateLikesBadge();}});setupMatchesListener();await updateUnreadBadge();if(!user.emailVerified){document.getElementById('verifyBanner').style.display='flex';}else{document.getElementById('verifyBanner').style.display='none';}}}});
+    
+    const darkToggle=document.getElementById('darkModeToggle');if(localStorage.getItem('darkMode')==='enabled'){document.body.classList.add('dark');darkToggle.innerText='☀️ Light Mode';}darkToggle.onclick=()=>{document.body.classList.toggle('dark');if(document.body.classList.contains('dark')){localStorage.setItem('darkMode','enabled');darkToggle.innerText='☀️ Light Mode';}else{localStorage.setItem('darkMode','disabled');darkToggle.innerText='🌙 Dark Mode';}};
+</script>
+</body>
+</html>
